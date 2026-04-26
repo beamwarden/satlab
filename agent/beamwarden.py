@@ -37,7 +37,7 @@ class BeamwardenClient:
         try:
             with httpx.Client(timeout=10.0) as client:
                 resp = client.post(
-                    f"{self._base_url}/api/v1/readings/ingest/",
+                    f"{self._base_url}/api/v1/ingest/",
                     headers=self._headers,
                     json=body,
                 )
