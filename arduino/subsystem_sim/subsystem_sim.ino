@@ -118,6 +118,7 @@ void setup() {
     while (!Serial) {}
 
     Wire.begin();
+    delay(100);
 
     aht_ok  = aht.begin();
     bmp_ok  = bmp.begin(0x76) || bmp.begin(0x77);
