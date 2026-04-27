@@ -17,7 +17,7 @@
  *   A1  — Sound / microphone sensor (analog)
  *   D7  — DHT11/22 temp+humidity
  *   I2C — BMP280 air pressure (addr 0x76 or 0x77)
- *   I2C — MPU-6050 accelerometer (addr 0x68)
+ *   I2C — LIS3DHTR accelerometer (addr 0x19)
  *
  * Note: SSD1306 OLED omitted — Adafruit SSD1306+GFX libraries exceed the
  * Uno's 32KB flash when combined with dtostrf float support. Re-enable on
@@ -26,14 +26,13 @@
  * Required libraries (install via Arduino Library Manager):
  *   Adafruit DHT sensor library + Adafruit Unified Sensor
  *   Adafruit BMP280
- *   Adafruit MPU6050 + Adafruit Unified Sensor
+ *   Seeed Arduino LIS3DHTR
  */
 
 #include <Wire.h>
 #include <DHT.h>
 #include <Adafruit_BMP280.h>
-#include <Adafruit_MPU6050.h>
-#include <Adafruit_Sensor.h>
+#include "LIS3DHTR.h"
 
 // ── Pin config ───────────────────────────────────────────────────────────────
 #define PIN_LIGHT       A0
@@ -45,12 +44,12 @@
 #define SAMPLE_INTERVAL_MS  10000UL   // 10 seconds
 
 // ── Sensor objects ────────────────────────────────────────────────────────────
-DHT             dht(PIN_DHT, DHT_TYPE);
-Adafruit_BMP280 bmp;
-Adafruit_MPU6050 mpu;
+DHT               dht(PIN_DHT, DHT_TYPE);
+Adafruit_BMP280   bmp;
+LIS3DHTR<TwoWire> lis;
 
 bool bmp_ok = false;
-bool mpu_ok = false;
+bool lis_ok = false;
 
 unsigned long last_sample = 0;
 
@@ -86,14 +85,16 @@ void setup() {
     dht.begin();
 
     bmp_ok = bmp.begin(0x76) || bmp.begin(0x77);
-    mpu_ok = mpu.begin();
+
+    lis.begin(Wire, 0x19);
+    lis_ok = lis.available();
 
     // Emit sensor init status for RPi agent
     Serial.print("{\"ts\":");
     print_timestamp();
     Serial.print(",\"subsystem\":\"system\",\"sensor\":\"init\",\"payload\":{");
     Serial.print("\"bmp_ok\":");  Serial.print(bmp_ok ? "true" : "false");
-    Serial.print(",\"mpu_ok\":"); Serial.print(mpu_ok ? "true" : "false");
+    Serial.print(",\"lis_ok\":"); Serial.print(lis_ok ? "true" : "false");
     Serial.println("}}");
 }
 
@@ -138,21 +139,16 @@ void loop() {
         emit_packet("structural", "bmp280", buf);
     }
 
-    // ── ADCS: accelerometer + gyro ───────────────────────────────────────
-    if (mpu_ok) {
-        sensors_event_t accel, gyro, temp_event;
-        mpu.getEvent(&accel, &gyro, &temp_event);
-        char sax[10], say[10], saz[10], sgx[10], sgy[10], sgz[10];
-        dtostrf(accel.acceleration.x, 1, 3, sax);
-        dtostrf(accel.acceleration.y, 1, 3, say);
-        dtostrf(accel.acceleration.z, 1, 3, saz);
-        dtostrf(gyro.gyro.x, 1, 3, sgx);
-        dtostrf(gyro.gyro.y, 1, 3, sgy);
-        dtostrf(gyro.gyro.z, 1, 3, sgz);
-        snprintf(buf, sizeof(buf),
-            "{\"ax_ms2\":%s,\"ay_ms2\":%s,\"az_ms2\":%s"
-            ",\"gx_rads\":%s,\"gy_rads\":%s,\"gz_rads\":%s}",
-            sax, say, saz, sgx, sgy, sgz);
-        emit_packet("adcs", "mpu6050", buf);
+    // ── ADCS: LIS3DHTR 3-axis accelerometer ─────────────────────────────
+    if (lis_ok) {
+        float ax = lis.getAccelerationX();
+        float ay = lis.getAccelerationY();
+        float az = lis.getAccelerationZ();
+        char sax[10], say[10], saz[10];
+        dtostrf(ax, 1, 3, sax);
+        dtostrf(ay, 1, 3, say);
+        dtostrf(az, 1, 3, saz);
+        snprintf(buf, sizeof(buf), "{\"ax_g\":%s,\"ay_g\":%s,\"az_g\":%s}", sax, say, saz);
+        emit_packet("adcs", "lis3dh", buf);
     }
 }
