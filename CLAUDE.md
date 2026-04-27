@@ -110,7 +110,7 @@ TLE source is Space-Track.org (same credentials as ne-body). TLEs are cached for
 
 ## RPi setup (Beamrider-0003)
 
-**Hardware:** Raspberry Pi 3 Model B Rev 1.2, Debian GNU/Linux 12 (Bookworm)
+**Hardware:** Raspberry Pi 3 Model B Rev 1.2, Debian GNU/Linux 12 (Bookworm) — repo cloned at `~/satlab`
 
 ```bash
 # 1. Install Python deps (Bookworm ships Python 3.11)
@@ -156,7 +156,7 @@ for _ in range(20):
 "
 ```
 
-Sketches can be compiled from the repo path directly (e.g. `~/git/satlab/arduino/subsystem_sim`) or copied to `/tmp` first. Read at least 20 lines — diagnostic sketches emit multi-line output and the critical values appear after the I2C scan.
+Sketches can be compiled from the repo path directly (e.g. `~/satlab/arduino/subsystem_sim`) or copied to `/tmp` first. Read at least 20 lines — diagnostic sketches emit multi-line output and the critical values appear after the I2C scan.
 
 Install a library:
 ```bash
