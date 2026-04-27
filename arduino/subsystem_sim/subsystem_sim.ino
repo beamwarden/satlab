@@ -16,23 +16,25 @@
  *   A0  — LDR light sensor (analog)
  *   A1  — Sound / microphone sensor (analog)
  *   I2C — AHT20 temp+humidity (addr 0x38)
- *   I2C — DPS310 air pressure (addr 0x77, chip_id reg[0x0D]=0x11)
+ *   I2C — DPS310 air pressure (addr 0x77, chip_id reg[0x0D]=0x11, rev 1)
  *   I2C — LIS3DHTR accelerometer (addr 0x19)
- *   I2C — SSD1306 OLED 128x64 (addr 0x3C)
  *
- * Required libraries (install via Arduino Library Manager):
+ * Required libraries (install via arduino-cli lib install):
  *   Adafruit AHTX0
- *   Adafruit DPS310
+ *   Adafruit DPS310  — patch required: Adafruit_DPS310.cpp line 134,
+ *                      change (chip_id.read() != 0x10) to
+ *                      ((chip_id.read() & 0xF0) != 0x10) to accept rev 0x11
  *   Seeed Arduino LIS3DHTR
- *   Adafruit SSD1306 + Adafruit GFX
+ *
+ * OLED deferred to iteration 2 (Wio Tracker, nRF52840, 256 KB RAM).
+ * Uno has only 988 bytes of heap available with this sensor suite loaded;
+ * the SSD1306 128x64 frame buffer requires 1024 bytes.
  */
 
 #include <Wire.h>
 #include <Adafruit_AHTX0.h>
 #include "Adafruit_DPS310.h"
 #include "LIS3DHTR.h"
-#include <Adafruit_SSD1306.h>
-#include <Adafruit_GFX.h>
 
 // ── Pin config ───────────────────────────────────────────────────────────────
 #define PIN_LIGHT       A0
@@ -41,21 +43,14 @@
 // ── Timing ───────────────────────────────────────────────────────────────────
 #define SAMPLE_INTERVAL_MS  10000UL   // 10 seconds
 
-// ── OLED ─────────────────────────────────────────────────────────────────────
-#define OLED_WIDTH  128
-#define OLED_HEIGHT  64
-#define OLED_ADDR   0x3C
-
 // ── Sensor objects ────────────────────────────────────────────────────────────
 Adafruit_AHTX0    aht;
 Adafruit_DPS310   dps;
 LIS3DHTR<TwoWire> lis;
-Adafruit_SSD1306  display(OLED_WIDTH, OLED_HEIGHT, &Wire, -1);
 
 bool aht_ok  = false;
 bool dps_ok  = false;
 bool lis_ok  = false;
-bool oled_ok = false;
 
 unsigned long last_sample = 0;
 
@@ -82,36 +77,6 @@ void emit_packet(const char* subsystem, const char* sensor, const char* payload_
     Serial.println("}");
 }
 
-void update_oled(float temp_c, float humidity, float pressure_hpa,
-                 float ax, float ay, float az, int light_pct) {
-    if (!oled_ok) return;
-    display.clearDisplay();
-    display.setTextSize(1);
-    display.setTextColor(SSD1306_WHITE);
-
-    display.setCursor(0, 0);
-    display.print(F("satlab beamrider-0003"));
-
-    display.setCursor(0, 10);
-    display.print(F("T:"));  display.print(temp_c, 1);
-    display.print(F("C H:")); display.print(humidity, 0);
-    display.print(F("%"));
-
-    display.setCursor(0, 20);
-    display.print(F("P:")); display.print(pressure_hpa, 0);
-    display.print(F("hPa L:")); display.print(light_pct);
-    display.print(F("%"));
-
-    display.setCursor(0, 30);
-    display.print(F("Ax:")); display.print(ax, 2);
-    display.print(F(" Ay:")); display.print(ay, 2);
-
-    display.setCursor(0, 40);
-    display.print(F("Az:")); display.print(az, 2);
-
-    display.display();
-}
-
 // ── Setup ─────────────────────────────────────────────────────────────────────
 void setup() {
     Serial.begin(9600);
@@ -124,18 +89,6 @@ void setup() {
     dps_ok  = dps.begin_I2C(0x77);
     lis.begin(Wire, 0x19);
     lis_ok  = lis.available();
-    oled_ok = display.begin(SSD1306_SWITCHCAPVCC, OLED_ADDR, false);
-
-    if (oled_ok) {
-        display.clearDisplay();
-        display.setTextSize(1);
-        display.setTextColor(SSD1306_WHITE);
-        display.setCursor(0, 0);
-        display.println(F("satlab"));
-        display.println(F("beamrider-0003"));
-        display.println(F("initializing..."));
-        display.display();
-    }
 
     // Emit sensor init status for RPi agent
     Serial.print("{\"ts\":");
@@ -144,7 +97,6 @@ void setup() {
     Serial.print("\"aht_ok\":");  Serial.print(aht_ok  ? "true" : "false");
     Serial.print(",\"dps_ok\":"); Serial.print(dps_ok  ? "true" : "false");
     Serial.print(",\"lis_ok\":"); Serial.print(lis_ok  ? "true" : "false");
-    Serial.print(",\"oled_ok\":"); Serial.print(oled_ok ? "true" : "false");
     Serial.println("}}");
 }
 
@@ -196,11 +148,10 @@ void loop() {
     }
 
     // ── ADCS: LIS3DHTR 3-axis accelerometer ─────────────────────────────
-    float ax = 0, ay = 0, az = 0;
     if (lis_ok) {
-        ax = lis.getAccelerationX();
-        ay = lis.getAccelerationY();
-        az = lis.getAccelerationZ();
+        float ax = lis.getAccelerationX();
+        float ay = lis.getAccelerationY();
+        float az = lis.getAccelerationZ();
         char sax[10], say[10], saz[10];
         dtostrf(ax, 1, 3, sax);
         dtostrf(ay, 1, 3, say);
@@ -208,6 +159,4 @@ void loop() {
         snprintf(buf, sizeof(buf), "{\"ax_g\":%s,\"ay_g\":%s,\"az_g\":%s}", sax, say, saz);
         emit_packet("adcs", "lis3dh", buf);
     }
-
-    update_oled(temp_c, humidity, pressure_hpa, ax, ay, az, light_pct);
 }

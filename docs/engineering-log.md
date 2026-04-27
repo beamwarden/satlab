@@ -4,6 +4,46 @@ Entries in descending order — most recent first.
 
 ---
 
+## 2026-04-27 — DPS310 identified and streaming; OLED deferred
+
+**Status:** All six sensors live, including `structural_bmp280` (actually DPS310).
+
+### What happened
+
+The sensor previously assumed to be a BMP280 at I2C address 0x77 was misidentified. The diagnostic sketch `arduino/diag_bmp_oled` confirmed:
+
+- `reg[0xD0] = 0x0` — not a BMP series sensor (BMP280 returns 0x60)
+- `reg[0x0D] = 0x11` — Infineon DPS310 revision 1 (product family upper nibble 0x1)
+
+The Adafruit DPS310 library v1.1.6 does a strict `chip_id == 0x10` check and rejects revision 0x11. Patched `Adafruit_DPS310.cpp` line 134 on beamrider-0003:
+
+```
+# Before
+if (chip_id.read() != 0x10) {
+# After
+if ((chip_id.read() & 0xF0) != 0x10) {
+```
+
+Sensor name `structural_bmp280` preserved in Beamwarden to avoid re-registration.
+
+### OLED confirmed deferred to iteration 2
+
+With the full sensor suite loaded (AHT20 + DPS310 + LIS3DHTR), the Uno has 1060 bytes of global variables and only 988 bytes of heap available at runtime. The SSD1306 128×64 frame buffer requires 1024 bytes via `malloc()` — it cannot fit. OLED removed from `subsystem_sim.ino` to recover ~8 KB of flash headroom (was at 92%). OLED display planned for iteration 2 (Wio Tracker, nRF52840, 256 KB RAM).
+
+### Sketch libraries (arduino/subsystem_sim) — final iteration 1 state
+| Library | Version | Purpose |
+|---|---|---|
+| Adafruit AHTX0 | latest | AHT20 temp+humidity |
+| Adafruit DPS310 | 1.1.6 (patched) | DPS310 pressure + temp |
+| Seeed Arduino LIS3DHTR | 1.2.4 | LIS3DHTR accelerometer |
+
+### Next steps
+- Start the agent on beamrider-0003 and confirm `structural_bmp280` readings appear in Beamwarden
+- Set up agent as systemd service on beamrider-0003 for persistence across reboots
+- Iteration 2: replace USB serial with Wio Tracker SX1262 LoRa radio
+
+---
+
 ## 2026-04-26 — Iteration 1 sensor bring-up complete
 
 **Status:** All five sensors live, streaming to Beamwarden (beamrider-0003).
