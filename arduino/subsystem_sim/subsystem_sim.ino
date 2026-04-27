@@ -18,21 +18,21 @@
  *   I2C — AHT20 temp+humidity (addr 0x38)
  *   I2C — BMP280 air pressure (addr 0x76 or 0x77)
  *   I2C — LIS3DHTR accelerometer (addr 0x19)
- *
- * Note: SSD1306 OLED omitted — Adafruit SSD1306+GFX libraries exceed the
- * Uno's 32KB flash when combined with dtostrf float support. Re-enable on
- * the Wio Tracker (nRF52840, 1MB flash) in iteration 2.
+ *   I2C — SSD1306 OLED 128x64 (addr 0x3C)
  *
  * Required libraries (install via Arduino Library Manager):
  *   Adafruit AHTX0
  *   Adafruit BMP280
  *   Seeed Arduino LIS3DHTR
+ *   Adafruit SSD1306 + Adafruit GFX
  */
 
 #include <Wire.h>
 #include <Adafruit_AHTX0.h>
 #include <Adafruit_BMP280.h>
 #include "LIS3DHTR.h"
+#include <Adafruit_SSD1306.h>
+#include <Adafruit_GFX.h>
 
 // ── Pin config ───────────────────────────────────────────────────────────────
 #define PIN_LIGHT       A0
@@ -41,14 +41,21 @@
 // ── Timing ───────────────────────────────────────────────────────────────────
 #define SAMPLE_INTERVAL_MS  10000UL   // 10 seconds
 
+// ── OLED ─────────────────────────────────────────────────────────────────────
+#define OLED_WIDTH  128
+#define OLED_HEIGHT  64
+#define OLED_ADDR   0x3C
+
 // ── Sensor objects ────────────────────────────────────────────────────────────
 Adafruit_AHTX0    aht;
 Adafruit_BMP280   bmp;
 LIS3DHTR<TwoWire> lis;
+Adafruit_SSD1306  display(OLED_WIDTH, OLED_HEIGHT, &Wire, -1);
 
-bool aht_ok = false;
-bool bmp_ok = false;
-bool lis_ok = false;
+bool aht_ok  = false;
+bool bmp_ok  = false;
+bool lis_ok  = false;
+bool oled_ok = false;
 
 unsigned long last_sample = 0;
 
@@ -75,6 +82,36 @@ void emit_packet(const char* subsystem, const char* sensor, const char* payload_
     Serial.println("}");
 }
 
+void update_oled(float temp_c, float humidity, float pressure_hpa,
+                 float ax, float ay, float az, int light_pct) {
+    if (!oled_ok) return;
+    display.clearDisplay();
+    display.setTextSize(1);
+    display.setTextColor(SSD1306_WHITE);
+
+    display.setCursor(0, 0);
+    display.print(F("satlab beamrider-0003"));
+
+    display.setCursor(0, 10);
+    display.print(F("T:"));  display.print(temp_c, 1);
+    display.print(F("C H:")); display.print(humidity, 0);
+    display.print(F("%"));
+
+    display.setCursor(0, 20);
+    display.print(F("P:")); display.print(pressure_hpa, 0);
+    display.print(F("hPa L:")); display.print(light_pct);
+    display.print(F("%"));
+
+    display.setCursor(0, 30);
+    display.print(F("Ax:")); display.print(ax, 2);
+    display.print(F(" Ay:")); display.print(ay, 2);
+
+    display.setCursor(0, 40);
+    display.print(F("Az:")); display.print(az, 2);
+
+    display.display();
+}
+
 // ── Setup ─────────────────────────────────────────────────────────────────────
 void setup() {
     Serial.begin(9600);
@@ -82,18 +119,31 @@ void setup() {
 
     Wire.begin();
 
-    aht_ok = aht.begin();
-    bmp_ok = bmp.begin(0x76) || bmp.begin(0x77);
+    aht_ok  = aht.begin();
+    bmp_ok  = bmp.begin(0x76) || bmp.begin(0x77);
     lis.begin(Wire, 0x19);
-    lis_ok = lis.available();
+    lis_ok  = lis.available();
+    oled_ok = display.begin(SSD1306_SWITCHCAPVCC, OLED_ADDR);
+
+    if (oled_ok) {
+        display.clearDisplay();
+        display.setTextSize(1);
+        display.setTextColor(SSD1306_WHITE);
+        display.setCursor(0, 0);
+        display.println(F("satlab"));
+        display.println(F("beamrider-0003"));
+        display.println(F("initializing..."));
+        display.display();
+    }
 
     // Emit sensor init status for RPi agent
     Serial.print("{\"ts\":");
     print_timestamp();
     Serial.print(",\"subsystem\":\"system\",\"sensor\":\"init\",\"payload\":{");
-    Serial.print("\"aht_ok\":");  Serial.print(aht_ok ? "true" : "false");
-    Serial.print(",\"bmp_ok\":"); Serial.print(bmp_ok ? "true" : "false");
-    Serial.print(",\"lis_ok\":"); Serial.print(lis_ok ? "true" : "false");
+    Serial.print("\"aht_ok\":");  Serial.print(aht_ok  ? "true" : "false");
+    Serial.print(",\"bmp_ok\":"); Serial.print(bmp_ok  ? "true" : "false");
+    Serial.print(",\"lis_ok\":"); Serial.print(lis_ok  ? "true" : "false");
+    Serial.print(",\"oled_ok\":"); Serial.print(oled_ok ? "true" : "false");
     Serial.println("}}");
 }
 
@@ -117,20 +167,24 @@ void loop() {
     emit_packet("structural", "sound", buf);
 
     // ── TCS: temp + humidity (AHT20, I2C 0x38) ───────────────────────────
+    float temp_c = 0, humidity = 0;
     if (aht_ok) {
         sensors_event_t humidity_ev, temp_ev;
         aht.getEvent(&humidity_ev, &temp_ev);
+        temp_c   = temp_ev.temperature;
+        humidity = humidity_ev.relative_humidity;
         char st[10], sh[10];
-        dtostrf(temp_ev.temperature,    1, 2, st);
-        dtostrf(humidity_ev.relative_humidity, 1, 2, sh);
+        dtostrf(temp_c,   1, 2, st);
+        dtostrf(humidity, 1, 2, sh);
         snprintf(buf, sizeof(buf), "{\"temp_c\":%s,\"humidity_pct\":%s}", st, sh);
         emit_packet("tcs", "dht", buf);
     }
 
     // ── Structural: air pressure ─────────────────────────────────────────
+    float pressure_hpa = 0;
     if (bmp_ok) {
-        float pressure_hpa = bmp.readPressure() / 100.0f;
-        float bmp_temp     = bmp.readTemperature();
+        pressure_hpa   = bmp.readPressure() / 100.0f;
+        float bmp_temp = bmp.readTemperature();
         char sp[10], sbt[10];
         dtostrf(pressure_hpa, 1, 2, sp);
         dtostrf(bmp_temp,     1, 2, sbt);
@@ -139,10 +193,11 @@ void loop() {
     }
 
     // ── ADCS: LIS3DHTR 3-axis accelerometer ─────────────────────────────
+    float ax = 0, ay = 0, az = 0;
     if (lis_ok) {
-        float ax = lis.getAccelerationX();
-        float ay = lis.getAccelerationY();
-        float az = lis.getAccelerationZ();
+        ax = lis.getAccelerationX();
+        ay = lis.getAccelerationY();
+        az = lis.getAccelerationZ();
         char sax[10], say[10], saz[10];
         dtostrf(ax, 1, 3, sax);
         dtostrf(ay, 1, 3, say);
@@ -150,4 +205,6 @@ void loop() {
         snprintf(buf, sizeof(buf), "{\"ax_g\":%s,\"ay_g\":%s,\"az_g\":%s}", sax, say, saz);
         emit_packet("adcs", "lis3dh", buf);
     }
+
+    update_oled(temp_c, humidity, pressure_hpa, ax, ay, az, light_pct);
 }
