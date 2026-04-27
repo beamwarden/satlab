@@ -1,0 +1,55 @@
+# satlab Engineering Log
+
+Entries in descending order — most recent first.
+
+---
+
+## 2026-04-26 — Iteration 1 sensor bring-up complete
+
+**Status:** All five sensors live, streaming to Beamwarden (beamrider-0003).
+
+### Sensors operational
+| Beamwarden sensor | Subsystem | Hardware | Notes |
+|---|---|---|---|
+| `tcs_dht` | TCS | AHT20 (I2C 0x38) | temp_c: 20.5 °C, humidity_pct: 50.66% |
+| `adcs_lis3dh` | ADCS | LIS3DHTR (I2C 0x19) | ax_g, ay_g, az_g in units of g |
+| `eps_light` | EPS | LDR analog (A0) | pct 0–100 solar illumination proxy |
+| `structural_sound` | Structural | Microphone analog (A1) | raw ADC vibration proxy |
+| `orbit_sgp4` | Orbital | SGP4 propagation (ISS, NORAD 25544) | pushed every 30s from RPi agent |
+
+### Hardware confirmed on bench
+- Raspberry Pi 3 Model B Rev 1.2 (beamrider-0003, Debian Bookworm)
+- Arduino Uno R3 + Grove Base Shield
+- Grove LDR light sensor → A0
+- Grove sound/microphone sensor → A1
+- Grove AHT20 temp+humidity → I2C socket (addr 0x38)
+- Grove LIS3DHTR 3-axis accelerometer → I2C socket (addr 0x19)
+- USB-B cable (RPi ↔ Arduino, serial at 9600 baud)
+
+### Issues resolved
+- **`%f` in avr-libc snprintf outputs `?`** — AVR printf does not include float support by default. Fixed by switching to `dtostrf()` for I2C sensor floats and integer arithmetic for analog percentages. Removing the SSD1306/GFX OLED libraries freed sufficient flash headroom.
+- **OLED deferred** — Adafruit SSD1306 + GFX + dtostrf together exceed the Uno's 32KB flash. OLED support deferred to iteration 2 (Wio Tracker, nRF52840, 1MB flash).
+- **Sensor misidentification** — Kit documentation described sensor as "DHT11 on D3/D7" but actual chip is AHT20 (I2C). Confirmed by I2C scanner (address 0x38). Sketch updated from DHT library to Adafruit AHTX0.
+- **Accelerometer misidentification** — Assumed MPU-6050 (0x68); actual sensor is LIS3DHTR (0x19). Confirmed by I2C scanner. Sketch updated to Seeed LIS3DHTR library; payload uses ax_g/ay_g/az_g in g-units (no gyro).
+- **`eps_light` not ingesting** — Arduino `snprintf` with `%.1f` emitted `?` for float pct field, causing JSON parse failure silently dropped at DEBUG log level. Fixed with integer arithmetic.
+- **Serial reconnection** — Agent crashed on Arduino reset (USB disconnect). Fixed: `serial_reader.py` now wraps port open in retry loop with 3s reconnect delay.
+- **Beamwarden URL** — Ingest endpoint is `/api/v1/ingest/` (not `/api/v1/readings/ingest/`).
+- **Sensor seeding** — All six sensors must be pre-registered in Beamwarden for beamrider-0003; `Sensor.objects.get_or_create` requires `company` and `business_unit` from the beamrider object.
+
+### Sketch libraries (arduino/subsystem_sim)
+| Library | Version | Purpose |
+|---|---|---|
+| Adafruit AHTX0 | latest | AHT20 temp+humidity |
+| Adafruit BMP280 | latest | BMP280 pressure (not yet wired) |
+| Seeed Arduino LIS3DHTR | 1.2.4 | LIS3DHTR accelerometer |
+
+### Sensors registered in Beamwarden (beamrider-0003) but not yet wired
+- `structural_bmp280` — BMP280 air pressure + temp (I2C 0x76/0x77)
+- `tcs_dht` sensor type registered as `tcs_dht`; `adcs_mpu6050` registered but superseded by `adcs_lis3dh`
+
+### Next steps
+- Wire BMP280 (air pressure) to I2C bus
+- Set up agent as systemd service on beamrider-0003 for persistence across reboots
+- Iteration 2: replace USB serial with Wio Tracker SX1262 LoRa radio
+
+---
