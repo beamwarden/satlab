@@ -138,6 +138,31 @@ Register beamrider-0003 in Beamwarden (admin UI or API) before running the agent
 
 ---
 
+## Arduino development (on beamrider-0003)
+
+Sketches are compiled and uploaded directly from the RPi using **arduino-cli**. Kill the satlab agent before uploading (it holds the serial port).
+
+```bash
+# Find the port
+ls /dev/ttyACM*
+
+# Compile
+arduino-cli compile --fqbn arduino:avr:uno arduino/<sketch-dir>
+
+# Upload
+arduino-cli upload -p /dev/ttyACM0 --fqbn arduino:avr:uno arduino/<sketch-dir>
+
+# Serial monitor (Ctrl-C to exit)
+arduino-cli monitor -p /dev/ttyACM0 --config baudrate=9600
+```
+
+Install a library:
+```bash
+arduino-cli lib install "Adafruit AHTX0"
+```
+
+---
+
 ## Related systems
 
 - **Beamwarden** — `http://localhost:8000` (local) or KEEP-0001. satlab registers as a Beamrider node.
