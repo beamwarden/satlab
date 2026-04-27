@@ -143,17 +143,10 @@ Register beamrider-0003 in Beamwarden (admin UI or API) before running the agent
 Sketches are compiled and uploaded directly from the RPi using **arduino-cli**. Kill the satlab agent before uploading (it holds the serial port).
 
 ```bash
-# Find the port
-ls /dev/ttyACM*
-
-# Compile
-arduino-cli compile --fqbn arduino:avr:uno arduino/<sketch-dir>
-
-# Upload
-arduino-cli upload -p /dev/ttyACM0 --fqbn arduino:avr:uno arduino/<sketch-dir>
-
-# Serial monitor (Ctrl-C to exit)
-arduino-cli monitor -p /dev/ttyACM0 --config baudrate=9600
+arduino-cli compile --fqbn arduino:avr:uno /tmp/<sketch-dir> && \
+arduino-cli upload --fqbn arduino:avr:uno -p /dev/ttyACM0 /tmp/<sketch-dir> && \
+sleep 3 && \
+python3 ...
 ```
 
 Install a library:
