@@ -18,13 +18,15 @@
  *   D7  — DHT11/22 temp+humidity
  *   I2C — BMP280 air pressure (addr 0x76 or 0x77)
  *   I2C — MPU-6050 accelerometer (addr 0x68)
- *   I2C — SSD1306 OLED 128x64 (addr 0x3C)
+ *
+ * Note: SSD1306 OLED omitted — Adafruit SSD1306+GFX libraries exceed the
+ * Uno's 32KB flash when combined with dtostrf float support. Re-enable on
+ * the Wio Tracker (nRF52840, 1MB flash) in iteration 2.
  *
  * Required libraries (install via Arduino Library Manager):
  *   Adafruit DHT sensor library + Adafruit Unified Sensor
  *   Adafruit BMP280
  *   Adafruit MPU6050 + Adafruit Unified Sensor
- *   Adafruit SSD1306 + Adafruit GFX
  */
 
 #include <Wire.h>
@@ -32,8 +34,6 @@
 #include <Adafruit_BMP280.h>
 #include <Adafruit_MPU6050.h>
 #include <Adafruit_Sensor.h>
-#include <Adafruit_SSD1306.h>
-#include <Adafruit_GFX.h>
 
 // ── Pin config ───────────────────────────────────────────────────────────────
 #define PIN_LIGHT       A0
@@ -44,31 +44,22 @@
 // ── Timing ───────────────────────────────────────────────────────────────────
 #define SAMPLE_INTERVAL_MS  10000UL   // 10 seconds
 
-// ── OLED ─────────────────────────────────────────────────────────────────────
-#define OLED_WIDTH  128
-#define OLED_HEIGHT  64
-#define OLED_ADDR   0x3C
-
 // ── Sensor objects ────────────────────────────────────────────────────────────
-DHT           dht(PIN_DHT, DHT_TYPE);
+DHT             dht(PIN_DHT, DHT_TYPE);
 Adafruit_BMP280 bmp;
 Adafruit_MPU6050 mpu;
-Adafruit_SSD1306 display(OLED_WIDTH, OLED_HEIGHT, &Wire, -1);
 
-bool bmp_ok  = false;
-bool mpu_ok  = false;
-bool oled_ok = false;
+bool bmp_ok = false;
+bool mpu_ok = false;
 
 unsigned long last_sample = 0;
-uint32_t      cycle       = 0;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-// Fake ISO-8601 timestamp; real time comes from RPi agent via WWVB/GPS.
 // Arduino has no RTC — emit elapsed seconds since boot as a placeholder.
+// RPi agent replaces this with wall-clock UTC.
 void print_timestamp() {
     unsigned long s = millis() / 1000UL;
-    // Format: T+<seconds> — RPi agent replaces this with wall-clock UTC.
     Serial.print("\"T+");
     Serial.print(s);
     Serial.print("s\"");
@@ -86,33 +77,6 @@ void emit_packet(const char* subsystem, const char* sensor, const char* payload_
     Serial.println("}");
 }
 
-void update_oled(float temp_c, float pressure_hpa, float ax, float ay, float az) {
-    if (!oled_ok) return;
-    display.clearDisplay();
-    display.setTextSize(1);
-    display.setTextColor(SSD1306_WHITE);
-
-    display.setCursor(0, 0);
-    display.print("satlab  cycle:");
-    display.println(cycle);
-
-    display.print("T:");
-    display.print(temp_c, 1);
-    display.print("C  P:");
-    display.print(pressure_hpa, 0);
-    display.println("hPa");
-
-    display.print("Ax:");
-    display.print(ax, 2);
-    display.print(" Ay:");
-    display.println(ay, 2);
-
-    display.print("Az:");
-    display.println(az, 2);
-
-    display.display();
-}
-
 // ── Setup ─────────────────────────────────────────────────────────────────────
 void setup() {
     Serial.begin(9600);
@@ -121,28 +85,15 @@ void setup() {
     Wire.begin();
     dht.begin();
 
-    bmp_ok  = bmp.begin(0x76) || bmp.begin(0x77);
-    mpu_ok  = mpu.begin();
-    oled_ok = display.begin(SSD1306_SWITCHCAPVCC, OLED_ADDR);
-
-    if (oled_ok) {
-        display.clearDisplay();
-        display.setTextSize(1);
-        display.setTextColor(SSD1306_WHITE);
-        display.setCursor(0, 0);
-        display.println("satlab");
-        display.println("subsystem_sim");
-        display.println("ready");
-        display.display();
-    }
+    bmp_ok = bmp.begin(0x76) || bmp.begin(0x77);
+    mpu_ok = mpu.begin();
 
     // Emit sensor init status for RPi agent
     Serial.print("{\"ts\":");
     print_timestamp();
     Serial.print(",\"subsystem\":\"system\",\"sensor\":\"init\",\"payload\":{");
-    Serial.print("\"bmp_ok\":");  Serial.print(bmp_ok  ? "true" : "false");
-    Serial.print(",\"mpu_ok\":"); Serial.print(mpu_ok  ? "true" : "false");
-    Serial.print(",\"oled_ok\":"); Serial.print(oled_ok ? "true" : "false");
+    Serial.print("\"bmp_ok\":");  Serial.print(bmp_ok ? "true" : "false");
+    Serial.print(",\"mpu_ok\":"); Serial.print(mpu_ok ? "true" : "false");
     Serial.println("}}");
 }
 
@@ -151,7 +102,6 @@ void loop() {
     unsigned long now = millis();
     if (now - last_sample < SAMPLE_INTERVAL_MS) return;
     last_sample = now;
-    cycle++;
 
     char buf[128];
 
@@ -171,17 +121,16 @@ void loop() {
     float temp_c   = dht.readTemperature();
     if (!isnan(humidity) && !isnan(temp_c)) {
         char st[10], sh[10];
-        dtostrf(temp_c,  1, 2, st);
+        dtostrf(temp_c,   1, 2, st);
         dtostrf(humidity, 1, 2, sh);
         snprintf(buf, sizeof(buf), "{\"temp_c\":%s,\"humidity_pct\":%s}", st, sh);
         emit_packet("tcs", "dht", buf);
     }
 
-    // ── TCS / Structural: air pressure ───────────────────────────────────
-    float pressure_hpa = 1013.25f;  // fallback
+    // ── Structural: air pressure ─────────────────────────────────────────
     if (bmp_ok) {
-        pressure_hpa = bmp.readPressure() / 100.0f;
-        float bmp_temp = bmp.readTemperature();
+        float pressure_hpa = bmp.readPressure() / 100.0f;
+        float bmp_temp     = bmp.readTemperature();
         char sp[10], sbt[10];
         dtostrf(pressure_hpa, 1, 2, sp);
         dtostrf(bmp_temp,     1, 2, sbt);
@@ -189,26 +138,21 @@ void loop() {
         emit_packet("structural", "bmp280", buf);
     }
 
-    // ── ADCS: acceleration ────────────────────────────────────────────────
-    float ax = 0, ay = 0, az = 0;
+    // ── ADCS: accelerometer + gyro ───────────────────────────────────────
     if (mpu_ok) {
         sensors_event_t accel, gyro, temp_event;
         mpu.getEvent(&accel, &gyro, &temp_event);
-        ax = accel.acceleration.x;
-        ay = accel.acceleration.y;
-        az = accel.acceleration.z;
-        float gx = gyro.gyro.x;
-        float gy = gyro.gyro.y;
-        float gz = gyro.gyro.z;
         char sax[10], say[10], saz[10], sgx[10], sgy[10], sgz[10];
-        dtostrf(ax, 1, 3, sax); dtostrf(ay, 1, 3, say); dtostrf(az, 1, 3, saz);
-        dtostrf(gx, 1, 3, sgx); dtostrf(gy, 1, 3, sgy); dtostrf(gz, 1, 3, sgz);
+        dtostrf(accel.acceleration.x, 1, 3, sax);
+        dtostrf(accel.acceleration.y, 1, 3, say);
+        dtostrf(accel.acceleration.z, 1, 3, saz);
+        dtostrf(gyro.gyro.x, 1, 3, sgx);
+        dtostrf(gyro.gyro.y, 1, 3, sgy);
+        dtostrf(gyro.gyro.z, 1, 3, sgz);
         snprintf(buf, sizeof(buf),
             "{\"ax_ms2\":%s,\"ay_ms2\":%s,\"az_ms2\":%s"
             ",\"gx_rads\":%s,\"gy_rads\":%s,\"gz_rads\":%s}",
             sax, say, saz, sgx, sgy, sgz);
         emit_packet("adcs", "mpu6050", buf);
     }
-
-    update_oled(temp_c, pressure_hpa, ax, ay, az);
 }
