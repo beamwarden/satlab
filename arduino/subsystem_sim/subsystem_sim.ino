@@ -15,7 +15,7 @@
  * Pin assignments (adjust to match your wiring):
  *   A0  — LDR light sensor (analog)
  *   A1  — Sound / microphone sensor (analog)
- *   D7  — DHT11/22 temp+humidity
+ *   I2C — AHT20 temp+humidity (addr 0x38)
  *   I2C — BMP280 air pressure (addr 0x76 or 0x77)
  *   I2C — LIS3DHTR accelerometer (addr 0x19)
  *
@@ -24,30 +24,29 @@
  * the Wio Tracker (nRF52840, 1MB flash) in iteration 2.
  *
  * Required libraries (install via Arduino Library Manager):
- *   Adafruit DHT sensor library + Adafruit Unified Sensor
+ *   Adafruit AHTX0
  *   Adafruit BMP280
  *   Seeed Arduino LIS3DHTR
  */
 
 #include <Wire.h>
-#include <DHT.h>
+#include <Adafruit_AHTX0.h>
 #include <Adafruit_BMP280.h>
 #include "LIS3DHTR.h"
 
 // ── Pin config ───────────────────────────────────────────────────────────────
 #define PIN_LIGHT       A0
 #define PIN_SOUND       A1
-#define PIN_DHT         7
-#define DHT_TYPE        DHT11    // change to DHT22 if needed
 
 // ── Timing ───────────────────────────────────────────────────────────────────
 #define SAMPLE_INTERVAL_MS  10000UL   // 10 seconds
 
 // ── Sensor objects ────────────────────────────────────────────────────────────
-DHT               dht(PIN_DHT, DHT_TYPE);
+Adafruit_AHTX0    aht;
 Adafruit_BMP280   bmp;
 LIS3DHTR<TwoWire> lis;
 
+bool aht_ok = false;
 bool bmp_ok = false;
 bool lis_ok = false;
 
@@ -82,10 +81,9 @@ void setup() {
     while (!Serial) {}
 
     Wire.begin();
-    dht.begin();
 
+    aht_ok = aht.begin();
     bmp_ok = bmp.begin(0x76) || bmp.begin(0x77);
-
     lis.begin(Wire, 0x19);
     lis_ok = lis.available();
 
@@ -93,7 +91,8 @@ void setup() {
     Serial.print("{\"ts\":");
     print_timestamp();
     Serial.print(",\"subsystem\":\"system\",\"sensor\":\"init\",\"payload\":{");
-    Serial.print("\"bmp_ok\":");  Serial.print(bmp_ok ? "true" : "false");
+    Serial.print("\"aht_ok\":");  Serial.print(aht_ok ? "true" : "false");
+    Serial.print(",\"bmp_ok\":"); Serial.print(bmp_ok ? "true" : "false");
     Serial.print(",\"lis_ok\":"); Serial.print(lis_ok ? "true" : "false");
     Serial.println("}}");
 }
@@ -117,13 +116,13 @@ void loop() {
     snprintf(buf, sizeof(buf), "{\"raw\":%d}", sound_raw);
     emit_packet("structural", "sound", buf);
 
-    // ── TCS: temp + humidity ──────────────────────────────────────────────
-    float humidity = dht.readHumidity();
-    float temp_c   = dht.readTemperature();
-    if (!isnan(humidity) && !isnan(temp_c)) {
+    // ── TCS: temp + humidity (AHT20, I2C 0x38) ───────────────────────────
+    if (aht_ok) {
+        sensors_event_t humidity_ev, temp_ev;
+        aht.getEvent(&humidity_ev, &temp_ev);
         char st[10], sh[10];
-        dtostrf(temp_c,   1, 2, st);
-        dtostrf(humidity, 1, 2, sh);
+        dtostrf(temp_ev.temperature,    1, 2, st);
+        dtostrf(humidity_ev.relative_humidity, 1, 2, sh);
         snprintf(buf, sizeof(buf), "{\"temp_c\":%s,\"humidity_pct\":%s}", st, sh);
         emit_packet("tcs", "dht", buf);
     }
