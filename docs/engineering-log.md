@@ -4,9 +4,9 @@ Entries in descending order — most recent first.
 
 ---
 
-## 2026-04-27 — DPS310 identified and streaming; OLED deferred
+## 2026-04-27 — Iteration 1 complete: all 6 sensors streaming, agent on systemd
 
-**Status:** All six sensors live, including `structural_bmp280` (actually DPS310).
+**Status:** All six sensors live and unattended on beamrider-0003. PR #1 open against main.
 
 ### What happened
 
@@ -37,9 +37,23 @@ With the full sensor suite loaded (AHT20 + DPS310 + LIS3DHTR), the Uno has 1060 
 | Adafruit DPS310 | 1.1.6 (patched) | DPS310 pressure + temp |
 | Seeed Arduino LIS3DHTR | 1.2.4 | LIS3DHTR accelerometer |
 
+### systemd service
+
+`deploy/satlab-agent.service` installed and enabled on beamrider-0003. Starts after `network-online.target`, restarts on failure with 10 s delay. Logs via `journalctl -u satlab-agent -f`. Serial disconnect/reconnect warnings on startup are expected — the Arduino resets on DTR when pyserial opens the port; the reconnect loop handles it within one cycle.
+
+### Iteration 1 sensors — final state
+| Beamwarden sensor | Subsystem | Hardware | Notes |
+|---|---|---|---|
+| `eps_light` | EPS | LDR analog (A0) | pct 0–100 solar illumination proxy |
+| `structural_sound` | Structural | Microphone analog (A1) | raw ADC vibration proxy |
+| `tcs_dht` | TCS | AHT20 (I2C 0x38) | temp_c, humidity_pct |
+| `structural_bmp280` | Structural | DPS310 (I2C 0x77, chip_id 0x11) | pressure_hpa, temp_c |
+| `adcs_lis3dh` | ADCS | LIS3DHTR (I2C 0x19) | ax_g, ay_g, az_g |
+| `orbit_sgp4` | Orbital | SGP4 / ISS TLE (NORAD 25544) | pushed every 30 s from RPi agent |
+
 ### Next steps
-- Set up agent as systemd service on beamrider-0003 for persistence across reboots
-- Iteration 2: replace USB serial with Wio Tracker SX1262 LoRa radio
+- Merge PR #1 to main
+- Iteration 2: replace USB serial with Wio Tracker SX1262 LoRa radio; add OLED on nRF52840 (256 KB RAM)
 
 ---
 
