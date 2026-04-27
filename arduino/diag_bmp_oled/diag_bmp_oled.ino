@@ -55,16 +55,25 @@ void setup() {
     const uint8_t addrs[] = {0x76, 0x77};
     for (uint8_t i = 0; i < 2; i++) {
         uint8_t addr = addrs[i];
-        uint8_t id   = i2cReadReg(addr, 0xD0);   // chip ID register
+
+        // BMP/BME series: chip ID at 0xD0
+        uint8_t id_d0 = i2cReadReg(addr, 0xD0);
         Serial.print(F("  0x")); Serial.print(addr, HEX);
-        Serial.print(F("  chip_id=0x")); Serial.print(id, HEX);
-        if      (id == 0x60) Serial.print(F("  -> BMP280 or BME280 OK"));
-        else if (id == 0x55) Serial.print(F("  -> BMP180 (different library needed)"));
-        else if (id == 0x10) Serial.print(F("  -> DPS310 (different library needed)"));
-        else if (id == 0x58) Serial.print(F("  -> BMP280 sample chip OK"));
-        else if (id == 0xFE) Serial.print(F("  -> TX error (not present)"));
-        else if (id == 0xFF) Serial.print(F("  -> no ACK on read"));
-        else                 Serial.print(F("  -> unknown chip"));
+        Serial.print(F("  reg[0xD0]=0x")); Serial.print(id_d0, HEX);
+        if      (id_d0 == 0x60) Serial.print(F("  -> BMP280 or BME280"));
+        else if (id_d0 == 0x55) Serial.print(F("  -> BMP180"));
+        else if (id_d0 == 0x58) Serial.print(F("  -> BMP280 sample"));
+        else if (id_d0 == 0xFE) Serial.print(F("  -> TX error"));
+        else if (id_d0 == 0xFF) Serial.print(F("  -> no ACK"));
+        Serial.println();
+
+        // DPS310 (Infineon): product ID at 0x0D, returns 0x10
+        uint8_t id_0d = i2cReadReg(addr, 0x0D);
+        Serial.print(F("  0x")); Serial.print(addr, HEX);
+        Serial.print(F("  reg[0x0D]=0x")); Serial.print(id_0d, HEX);
+        if      (id_0d == 0x10) Serial.print(F("  -> DPS310 (use Adafruit DPS310 lib)"));
+        else if (id_0d == 0xFE) Serial.print(F("  -> TX error"));
+        else if (id_0d == 0xFF) Serial.print(F("  -> no ACK"));
         Serial.println();
     }
 
