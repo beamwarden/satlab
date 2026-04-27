@@ -157,8 +157,8 @@ void loop() {
 
     // ── EPS: light (solar panel / illumination analog) ────────────────────
     int light_raw = analogRead(PIN_LIGHT);
-    float light_pct = (light_raw / 1023.0f) * 100.0f;
-    snprintf(buf, sizeof(buf), "{\"raw\":%d,\"pct\":%.1f}", light_raw, light_pct);
+    int light_pct = (int)((light_raw * 100L) / 1023);
+    snprintf(buf, sizeof(buf), "{\"raw\":%d,\"pct\":%d}", light_raw, light_pct);
     emit_packet("eps", "light", buf);
 
     // ── Structural: sound (microphone — vibration / structural health) ────
@@ -170,7 +170,10 @@ void loop() {
     float humidity = dht.readHumidity();
     float temp_c   = dht.readTemperature();
     if (!isnan(humidity) && !isnan(temp_c)) {
-        snprintf(buf, sizeof(buf), "{\"temp_c\":%.2f,\"humidity_pct\":%.2f}", temp_c, humidity);
+        char st[10], sh[10];
+        dtostrf(temp_c,  1, 2, st);
+        dtostrf(humidity, 1, 2, sh);
+        snprintf(buf, sizeof(buf), "{\"temp_c\":%s,\"humidity_pct\":%s}", st, sh);
         emit_packet("tcs", "dht", buf);
     }
 
@@ -179,7 +182,10 @@ void loop() {
     if (bmp_ok) {
         pressure_hpa = bmp.readPressure() / 100.0f;
         float bmp_temp = bmp.readTemperature();
-        snprintf(buf, sizeof(buf), "{\"pressure_hpa\":%.2f,\"temp_c\":%.2f}", pressure_hpa, bmp_temp);
+        char sp[10], sbt[10];
+        dtostrf(pressure_hpa, 1, 2, sp);
+        dtostrf(bmp_temp,     1, 2, sbt);
+        snprintf(buf, sizeof(buf), "{\"pressure_hpa\":%s,\"temp_c\":%s}", sp, sbt);
         emit_packet("structural", "bmp280", buf);
     }
 
@@ -194,10 +200,13 @@ void loop() {
         float gx = gyro.gyro.x;
         float gy = gyro.gyro.y;
         float gz = gyro.gyro.z;
+        char sax[10], say[10], saz[10], sgx[10], sgy[10], sgz[10];
+        dtostrf(ax, 1, 3, sax); dtostrf(ay, 1, 3, say); dtostrf(az, 1, 3, saz);
+        dtostrf(gx, 1, 3, sgx); dtostrf(gy, 1, 3, sgy); dtostrf(gz, 1, 3, sgz);
         snprintf(buf, sizeof(buf),
-            "{\"ax_ms2\":%.3f,\"ay_ms2\":%.3f,\"az_ms2\":%.3f"
-            ",\"gx_rads\":%.3f,\"gy_rads\":%.3f,\"gz_rads\":%.3f}",
-            ax, ay, az, gx, gy, gz);
+            "{\"ax_ms2\":%s,\"ay_ms2\":%s,\"az_ms2\":%s"
+            ",\"gx_rads\":%s,\"gy_rads\":%s,\"gz_rads\":%s}",
+            sax, say, saz, sgx, sgy, sgz);
         emit_packet("adcs", "mpu6050", buf);
     }
 
