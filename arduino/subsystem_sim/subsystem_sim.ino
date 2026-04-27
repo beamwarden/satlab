@@ -121,10 +121,10 @@ void setup() {
     delay(100);
 
     aht_ok  = aht.begin();
-    bmp_ok  = bmp.begin(0x76) || bmp.begin(0x77);
+    bmp_ok  = bmp.begin(0x77);
     lis.begin(Wire, 0x19);
     lis_ok  = lis.available();
-    oled_ok = display.begin(SSD1306_SWITCHCAPVCC, OLED_ADDR);
+    oled_ok = display.begin(SSD1306_SWITCHCAPVCC, OLED_ADDR, false);
 
     if (oled_ok) {
         display.clearDisplay();
