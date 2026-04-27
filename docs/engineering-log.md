@@ -38,7 +38,6 @@ With the full sensor suite loaded (AHT20 + DPS310 + LIS3DHTR), the Uno has 1060 
 | Seeed Arduino LIS3DHTR | 1.2.4 | LIS3DHTR accelerometer |
 
 ### Next steps
-- Start the agent on beamrider-0003 and confirm `structural_bmp280` readings appear in Beamwarden
 - Set up agent as systemd service on beamrider-0003 for persistence across reboots
 - Iteration 2: replace USB serial with Wio Tracker SX1262 LoRa radio
 
