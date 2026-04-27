@@ -16,20 +16,20 @@
  *   A0  — LDR light sensor (analog)
  *   A1  — Sound / microphone sensor (analog)
  *   I2C — AHT20 temp+humidity (addr 0x38)
- *   I2C — BMP280 air pressure (addr 0x76 or 0x77)
+ *   I2C — DPS310 air pressure (addr 0x77, chip_id reg[0x0D]=0x11)
  *   I2C — LIS3DHTR accelerometer (addr 0x19)
  *   I2C — SSD1306 OLED 128x64 (addr 0x3C)
  *
  * Required libraries (install via Arduino Library Manager):
  *   Adafruit AHTX0
- *   Adafruit BMP280
+ *   Adafruit DPS310
  *   Seeed Arduino LIS3DHTR
  *   Adafruit SSD1306 + Adafruit GFX
  */
 
 #include <Wire.h>
 #include <Adafruit_AHTX0.h>
-#include <Adafruit_BMP280.h>
+#include "Adafruit_DPS310.h"
 #include "LIS3DHTR.h"
 #include <Adafruit_SSD1306.h>
 #include <Adafruit_GFX.h>
@@ -48,12 +48,12 @@
 
 // ── Sensor objects ────────────────────────────────────────────────────────────
 Adafruit_AHTX0    aht;
-Adafruit_BMP280   bmp;
+Adafruit_DPS310   dps;
 LIS3DHTR<TwoWire> lis;
 Adafruit_SSD1306  display(OLED_WIDTH, OLED_HEIGHT, &Wire, -1);
 
 bool aht_ok  = false;
-bool bmp_ok  = false;
+bool dps_ok  = false;
 bool lis_ok  = false;
 bool oled_ok = false;
 
@@ -121,7 +121,7 @@ void setup() {
     delay(100);
 
     aht_ok  = aht.begin();
-    bmp_ok  = bmp.begin(0x77);
+    dps_ok  = dps.begin_I2C(0x77);
     lis.begin(Wire, 0x19);
     lis_ok  = lis.available();
     oled_ok = display.begin(SSD1306_SWITCHCAPVCC, OLED_ADDR, false);
@@ -142,7 +142,7 @@ void setup() {
     print_timestamp();
     Serial.print(",\"subsystem\":\"system\",\"sensor\":\"init\",\"payload\":{");
     Serial.print("\"aht_ok\":");  Serial.print(aht_ok  ? "true" : "false");
-    Serial.print(",\"bmp_ok\":"); Serial.print(bmp_ok  ? "true" : "false");
+    Serial.print(",\"dps_ok\":"); Serial.print(dps_ok  ? "true" : "false");
     Serial.print(",\"lis_ok\":"); Serial.print(lis_ok  ? "true" : "false");
     Serial.print(",\"oled_ok\":"); Serial.print(oled_ok ? "true" : "false");
     Serial.println("}}");
@@ -181,16 +181,18 @@ void loop() {
         emit_packet("tcs", "dht", buf);
     }
 
-    // ── Structural: air pressure ─────────────────────────────────────────
+    // ── Structural: air pressure (DPS310, I2C 0x77) ──────────────────────
     float pressure_hpa = 0;
-    if (bmp_ok) {
-        pressure_hpa   = bmp.readPressure() / 100.0f;
-        float bmp_temp = bmp.readTemperature();
+    if (dps_ok) {
+        sensors_event_t temp_ev, pressure_ev;
+        dps.getEvents(&temp_ev, &pressure_ev);
+        pressure_hpa      = pressure_ev.pressure;
+        float dps_temp    = temp_ev.temperature;
         char sp[10], sbt[10];
         dtostrf(pressure_hpa, 1, 2, sp);
-        dtostrf(bmp_temp,     1, 2, sbt);
+        dtostrf(dps_temp,     1, 2, sbt);
         snprintf(buf, sizeof(buf), "{\"pressure_hpa\":%s,\"temp_c\":%s}", sp, sbt);
-        emit_packet("structural", "bmp280", buf);
+        emit_packet("structural", "bmp280", buf);   // sensor name unchanged in Beamwarden
     }
 
     // ── ADCS: LIS3DHTR 3-axis accelerometer ─────────────────────────────
