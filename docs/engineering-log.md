@@ -96,11 +96,18 @@ firmware verification, Meshtastic configuration (region, channel PSK via
 export/import, node naming), RPi software setup, USB by-id path
 disambiguation, connectivity test, and agent integration smoke test.
 
+### Hardware / orders
+
+- Wio Tracker L1 units confirmed pre-flashed with Meshtastic — no reflash required
+- Battery charger: Adafruit #4410 Micro-Lipo USB-C charger ×2 ($5.95 ea);
+  close 500mA solder jumper on each before use
+
 ### Next steps
 
 - Tier 2: statistical residual monitoring (per-parameter 3σ with configurable window)
 - `agent/crosslink.py`: Meshtastic SerialInterface wrapper; health vector TX/RX
 - Second node bring-up (beamrider-0004): RPi + Arduino + Wio Tracker
+- Complete Wio Tracker cross-link setup per `docs/crosslink-setup.md`
 
 ---
 
