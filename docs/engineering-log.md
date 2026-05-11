@@ -4,6 +4,106 @@ Entries in descending order — most recent first.
 
 ---
 
+## 2026-05-09 — Tier 1 thresholds, health vector schema, cross-link planning
+
+**Status:** Agent extended from telemetry forwarder to sense-assess-act loop.
+Wio Tracker cross-link hardware identified and setup checklist written.
+
+### Architecture decision: Python prototype through Tier 2/3, C++ on SBIR award
+
+satlab is now explicitly building toward the Beamrider agent architecture
+described in EXPAND.3.S26B. The Python implementation is the reference
+prototype; a C++ port targeting ARM Cortex-A / LEON4 is deferred until
+Phase II hardware is selected.
+
+### New files
+
+**`agent/thresholds.py`** — Tier 1 threshold evaluation engine.
+Pure functions; no state. `evaluate(sensor_name, payload)` returns a list
+of `ThresholdViolation` objects (level: SOFT or HARD, field, value, message).
+Evaluators defined for all six sensor streams:
+
+| Sensor | Key thresholds |
+|---|---|
+| `eps_light` | pct <5 (soft), >90 (soft) |
+| `structural_sound` | raw >700 (soft), >950 (hard) |
+| `tcs_dht` | temp_c <15/>35 (soft), <5/>45 (hard); humidity_pct >75 (soft), >90 (hard) |
+| `structural_bmp280` | pressure_hpa <990/>1030 (soft), <960/>1050 (hard); temp same as tcs |
+| `adcs_lis3dh` | vector magnitude \|‖g‖−1.0\|>0.20 (soft), >0.50 (hard) |
+| `orbit_sgp4` | error_code ≠ 0 (hard) |
+
+ADCS thresholds on total g-vector magnitude rather than per-axis to remain
+robust to any bench mounting orientation.
+
+**`agent/health.py`** — Health vector schema and subsystem state machine.
+
+- `NodeState`: NOMINAL / DEGRADED / CRITICAL / SAFE_MODE / SILENT
+- `SubsystemState`: NOMINAL / DEGRADED / CRITICAL / UNKNOWN
+- `SubsystemHealth`: tracks per-sensor violations independently (structural
+  subsystem accumulates from both `structural_sound` and `structural_bmp280`);
+  maintains `ae_score` [0,1] anomaly evidence accumulator with decay 0.85/cycle
+- `HealthVector`: node_id (from `SATLAB_NODE_ID` env var or generated UUID),
+  sequence, top-level state, per-subsystem health, mission_capability [0,1],
+  available_for_tasking, nis_summaries (Tier 3 placeholder), hmac_tag (deferred)
+
+Subsystem weights for `mission_capability`: ADCS 30%, EPS 25%, TCS 20%,
+Structural 15%, Orbit 10%.
+
+### Modified files
+
+**`agent/main.py`** — Wired Tier 1 + health vector into the main loop.
+Agent now runs a full sense-assess-publish cycle:
+
+1. Ingest serial packet to Beamwarden (unchanged)
+2. Run `evaluate()` against the payload
+3. Update `SubsystemHealth` via `vector.record_sensor()`
+4. On orbit interval (30 s): push `orbit_sgp4`, evaluate orbit, push `health_vector`
+5. Health vector published at 30 s nominal / 10 s DEGRADED or CRITICAL
+
+Hard violations logged at WARNING; soft at INFO. State transitions logged at
+INFO with capability and tasking flag. Health vector ingests to Beamwarden as
+`sensor_name="health_vector"` using the existing ingest endpoint — no
+Beamwarden changes required.
+
+New env var: `SATLAB_NODE_ID` (optional — stable UUID for health vector identity;
+auto-generated at startup if absent).
+
+**`docs/hardware.md`** — Updated pin and address tables to reflect confirmed
+hardware (DPS310 at 0x77, LIS3DHTR at 0x19, AHT20 at 0x38). Removed BMP280,
+MPU-6050, and SSD1306 OLED from tables. Added notes column explaining
+misidentifications. Added OLED deferral note with RAM constraint reason.
+
+### Cross-link: Wio Tracker L1 confirmed (2 units)
+
+The two Meshnology Wio Tracker L1 units (SX1262 LoRa + nRF52840, 3000 mAh,
+cases) in the hardware inventory ship pre-flashed with Meshtastic. With 2 units
+and 2 RPis, the cross-link architecture is:
+
+```
+Node A: Arduino-A → USB serial → RPi-A → USB → Wio-A ┐
+                                                       │ LoRa (Meshtastic)
+Node B: Arduino-B → USB serial → RPi-B → USB → Wio-B ┘
+                                    ↓
+                               Beamwarden (ground)
+```
+
+This covers all three proposal layers simultaneously. Meshtastic maximum
+payload is 237 bytes; health vector JSON will need compact-key serialization
+before the cross-link module is written.
+
+**`docs/crosslink-setup.md`** added: five-phase hardware checklist covering
+firmware verification, Meshtastic configuration (region, channel PSK via
+export/import, node naming), RPi software setup, USB by-id path
+disambiguation, connectivity test, and agent integration smoke test.
+
+### Next steps
+
+- Tier 2: statistical residual monitoring (per-parameter 3σ with configurable window)
+- `agent/crosslink.py`: Meshtastic SerialInterface wrapper; health vector TX/RX
+- Second node bring-up (beamrider-0004): RPi + Arduino + Wio Tracker
+
+---
+
 ## 2026-04-27 — Iteration 1 complete: all 6 sensors streaming, agent on systemd
 
 **Status:** All six sensors live and unattended on beamrider-0003. PR #1 open against main.

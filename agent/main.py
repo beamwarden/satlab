@@ -3,24 +3,29 @@ from __future__ import annotations
 """
 satlab RPi agent — iteration 1 (serial/USB)
 
-Reads JSON telemetry packets from the Arduino over serial, overlays orbital
-state from SGP4, and ingests everything to Beamwarden as a Beamrider node.
+Reads JSON telemetry packets from the Arduino over serial, runs Tier 1
+threshold checks, maintains a health vector, overlays orbital state from
+SGP4, and ingests everything to Beamwarden as a Beamrider node.
 
 Required environment variables:
     SATLAB_SERIAL_PORT    Serial device (e.g. /dev/ttyUSB0 or /dev/ttyACM0)
     BEAMWARDEN_URL        Base URL of Beamwarden (e.g. http://192.168.1.10:8000)
     BEAMWARDEN_TOKEN      Beamrider bearer token from Beamwarden
     SATLAB_NORAD_ID       NORAD ID to propagate (default: 25544 — ISS)
+    SATLAB_NODE_ID        Stable node identity UUID (generated at startup if absent)
 """
 
 import logging
 import os
 import sys
+import time
 from datetime import datetime, timezone
 
 from beamwarden import BeamwardenClient
+from health import HealthVector, NodeState
 from orbit import OrbitalPropagator
 from serial_reader import read_packets
+from thresholds import ViolationLevel, evaluate
 
 logging.basicConfig(
     level=logging.INFO,
@@ -28,8 +33,19 @@ logging.basicConfig(
 )
 logger = logging.getLogger("satlab.agent")
 
-# How often to push an orbital state reading regardless of sensor cadence (s).
-ORBIT_INTERVAL_S = 30
+ORBIT_INTERVAL_S       = 30
+_HV_INTERVAL_NOMINAL_S  = 30
+_HV_INTERVAL_DEGRADED_S = 10
+
+# Maps the combined sensor key (subsystem_sensor) to the health vector subsystem.
+_SENSOR_SUBSYSTEM: dict[str, str] = {
+    "eps_light":         "eps",
+    "structural_sound":  "structural",
+    "structural_bmp280": "structural",
+    "tcs_dht":           "tcs",
+    "adcs_lis3dh":       "adcs",
+    "orbit_sgp4":        "orbit",
+}
 
 
 def _require_env(name: str) -> str:
@@ -41,18 +57,23 @@ def _require_env(name: str) -> str:
 
 
 def main() -> None:
-    serial_port  = _require_env("SATLAB_SERIAL_PORT")
-    bw_url       = _require_env("BEAMWARDEN_URL")
-    bw_token     = _require_env("BEAMWARDEN_TOKEN")
-    norad_id     = os.environ.get("SATLAB_NORAD_ID", "25544")
+    serial_port = _require_env("SATLAB_SERIAL_PORT")
+    bw_url      = _require_env("BEAMWARDEN_URL")
+    bw_token    = _require_env("BEAMWARDEN_TOKEN")
+    norad_id    = os.environ.get("SATLAB_NORAD_ID", "25544")
 
-    client      = BeamwardenClient(bw_url, bw_token)
-    propagator  = OrbitalPropagator(norad_id)
+    client     = BeamwardenClient(bw_url, bw_token)
+    propagator = OrbitalPropagator(norad_id)
+    vector     = HealthVector()
+
+    logger.info(
+        "satlab agent starting — port=%s beamwarden=%s norad=%s node_id=%s",
+        serial_port, bw_url, norad_id, vector.node_id,
+    )
 
     last_orbit_push: float = 0.0
-
-    logger.info("satlab agent starting — port=%s beamwarden=%s norad=%s",
-                serial_port, bw_url, norad_id)
+    last_hv_push:    float = 0.0
+    prev_hv_state          = vector.state
 
     for packet in read_packets(serial_port):
         now = datetime.now(timezone.utc)
@@ -61,7 +82,6 @@ def main() -> None:
         sensor_name = packet.get("sensor", "unknown")
         payload     = packet.get("payload", {})
 
-        # System init packets are informational — log and skip ingestion.
         if subsystem == "system" and sensor_name == "init":
             logger.info("arduino init: %s", payload)
             continue
@@ -72,26 +92,61 @@ def main() -> None:
         except ValueError:
             recorded_at = now
 
-        ok = client.ingest(
-            sensor_name=f"{subsystem}_{sensor_name}",
-            recorded_at=recorded_at,
-            payload=payload,
-        )
-        if ok:
-            logger.debug("ingested %s/%s", subsystem, sensor_name)
+        full_sensor = f"{subsystem}_{sensor_name}"
 
-        # Push orbital state on interval, tied to any incoming packet as a tick.
-        import time
-        elapsed = time.monotonic() - last_orbit_push
-        if elapsed >= ORBIT_INTERVAL_S:
-            state = propagator.propagate(now)
-            client.ingest(
-                sensor_name="orbit_sgp4",
-                recorded_at=now,
-                payload=state.to_payload(),
-            )
-            last_orbit_push = time.monotonic()
+        client.ingest(sensor_name=full_sensor, recorded_at=recorded_at, payload=payload)
+        logger.debug("ingested %s", full_sensor)
+
+        # ── Tier 1 threshold evaluation ───────────────────────────────────────
+        violations = evaluate(full_sensor, payload)
+        sub_name   = _SENSOR_SUBSYSTEM.get(full_sensor)
+        if sub_name:
+            vector.record_sensor(full_sensor, sub_name, violations)
+        for v in violations:
+            if v.level == ViolationLevel.HARD:
+                logger.warning("TIER1 HARD  %s: %s", full_sensor, v.message)
+            else:
+                logger.info("TIER1 SOFT  %s: %s", full_sensor, v.message)
+
+        mono = time.monotonic()
+
+        # ── Orbital state push ────────────────────────────────────────────────
+        if mono - last_orbit_push >= ORBIT_INTERVAL_S:
+            state         = propagator.propagate(now)
+            orbit_payload = state.to_payload()
+            client.ingest(sensor_name="orbit_sgp4", recorded_at=now, payload=orbit_payload)
+            orbit_violations = evaluate("orbit_sgp4", orbit_payload)
+            vector.record_sensor("orbit_sgp4", "orbit", orbit_violations)
+            last_orbit_push = mono
             logger.debug("orbit state pushed: error_code=%d", state.error_code)
+
+        # ── Health vector push ────────────────────────────────────────────────
+        hv_interval = (
+            _HV_INTERVAL_DEGRADED_S
+            if vector.state in (NodeState.DEGRADED, NodeState.CRITICAL)
+            else _HV_INTERVAL_NOMINAL_S
+        )
+        if mono - last_hv_push >= hv_interval:
+            vector.refresh()
+            client.ingest(
+                sensor_name="health_vector",
+                recorded_at=now,
+                payload=vector.to_payload(now),
+            )
+            last_hv_push = mono
+
+            if vector.state != prev_hv_state:
+                logger.info(
+                    "health state: %s → %s  capability=%.2f  tasking=%s",
+                    prev_hv_state.value, vector.state.value,
+                    vector.mission_capability, vector.available_for_tasking,
+                )
+                prev_hv_state = vector.state
+            else:
+                logger.debug(
+                    "health vector seq=%d state=%s capability=%.2f",
+                    vector.sequence, vector.state.value, vector.mission_capability,
+                )
 
 
 if __name__ == "__main__":

@@ -16,18 +16,19 @@ Serial device on RPi: typically `/dev/ttyACM0` or `/dev/ttyUSB0`.
 |---|---|---|
 | A0 | LDR light sensor | EPS |
 | A1 | Sound / microphone module | Structural |
-| D7 | DHT11 (temp + humidity) | TCS |
-| I2C (A4/A5) | BMP280 (air pressure) | Structural / TCS |
-| I2C (A4/A5) | MPU-6050 (accelerometer + gyro) | ADCS |
-| I2C (A4/A5) | SSD1306 OLED 128×64 | Status display |
+| I2C (A4/A5) | AHT20 (temp + humidity) | TCS |
+| I2C (A4/A5) | DPS310 (air pressure + temp) | Structural |
+| I2C (A4/A5) | LIS3DHTR (accelerometer) | ADCS |
 
-All I2C devices share the same bus (A4=SDA, A5=SCL). Default I2C addresses:
+All I2C devices share the same bus (A4=SDA, A5=SCL). Confirmed I2C addresses:
 
-| Device | Address |
-|---|---|
-| BMP280 | 0x76 (or 0x77 if SDO pulled high) |
-| MPU-6050 | 0x68 (or 0x69 if AD0 pulled high) |
-| SSD1306 | 0x3C |
+| Device | Address | Notes |
+|---|---|---|
+| AHT20 | 0x38 | Replaces assumed DHT11 on D7 |
+| DPS310 | 0x77 | Replaces assumed BMP280; chip_id=0x11 (rev 1); Adafruit DPS310 lib patched for strict chip_id check |
+| LIS3DHTR | 0x19 | Replaces assumed MPU-6050; no gyro — ax_g/ay_g/az_g only |
+
+**OLED deferred to iteration 2.** SSD1306 128×64 frame buffer requires 1024 bytes via `malloc()`; Uno has only 988 bytes of heap available with the full sensor suite loaded. Planned for Wio Tracker nRF52840 (256 KB RAM).
 
 ## Arduino Modulino Thermo
 
