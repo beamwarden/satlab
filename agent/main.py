@@ -17,11 +17,13 @@ Required environment variables:
 
 import logging
 import os
+import signal
 import sys
 import time
 from datetime import datetime, timezone
 
 from beamwarden import BeamwardenClient
+from bench import Benchmarker
 from health import HealthVector, NodeState
 from orbit import OrbitalPropagator
 from serial_reader import read_packets
@@ -65,6 +67,14 @@ def main() -> None:
     client     = BeamwardenClient(bw_url, bw_token)
     propagator = OrbitalPropagator(norad_id)
     vector     = HealthVector()
+    bench      = Benchmarker()
+
+    def _on_exit(signum, frame):
+        bench.log_summary()
+        sys.exit(0)
+
+    signal.signal(signal.SIGINT,  _on_exit)
+    signal.signal(signal.SIGTERM, _on_exit)
 
     logger.info(
         "satlab agent starting — port=%s beamwarden=%s norad=%s node_id=%s",
@@ -73,6 +83,7 @@ def main() -> None:
 
     last_orbit_push: float = 0.0
     last_hv_push:    float = 0.0
+    last_bench_push: float = 0.0
     prev_hv_state          = vector.state
 
     for packet in read_packets(serial_port):
@@ -140,6 +151,14 @@ def main() -> None:
                 recorded_at=now,
                 payload=vector.to_payload(now),
             )
+
+            bench_reading = bench.sample()
+            client.ingest(
+                sensor_name="kpp_bench",
+                recorded_at=now,
+                payload=bench_reading,
+            )
+            last_bench_push = mono
             last_hv_push = mono
 
             if vector.state != prev_hv_state:
