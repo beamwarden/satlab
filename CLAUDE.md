@@ -25,37 +25,43 @@ Beamwarden deploys and manages the Beamrider agent on the RPi via SSH/Ansible, m
 
 ## Hardware inventory
 
-| Item | Qty | Role |
-|---|---|---|
-| Raspberry Pi 3 (32 GB) | 2 | Flight computer / RPi agent |
-| Arduino Uno R3 | 1 | Primary subsystem controller |
-| Arduino Uno Q | 1 | Secondary / spare |
-| Arduino Sensor Kit | 1 | General sensors |
-| Arduino Modulino Thermo | 1 | TCS (thermal control) |
-| MQ4 Methane Gas Sensor | 2 | Propulsion / atmosphere analog |
-| Adafruit KB2040 | 1 | Auxiliary edge node (CircuitPython/Arduino) |
-| Inventr.io Shields Kit | 1 | Sensor expansion |
-| Inventr.io 37 Sensor Kit | 1 | General sensor suite |
-| Inventr.io Hero Board | 1 | Development board |
-| Canaduino WWVB/MSF 60 kHz Atomic Clock AM receiver | 1 | Precise time reference |
-| XIITIA GY-NEO7mV2 GPS Module | 3 | Orbital position simulation |
-| Meshnology Wio Tracker L1 (SX1262 LoRa + nRF52840, 3000 mAh) | 2 | Iteration 2 radio layer |
-| Breadboards, connectors, cables, soldering station | — | Integration |
+| Item | Qty | Role | Status |
+|---|---|---|---|
+| Raspberry Pi 3 (32 GB) | 2 | Flight computer / RPi agent | Operational |
+| Arduino Uno R3 | 1 | Primary subsystem controller | Operational |
+| Arduino Uno Q | 1 | Secondary / spare | On hand |
+| Arduino Sensor Kit | 1 | General sensors | Operational |
+| Arduino Modulino Thermo | 1 | TCS (thermal control) | Operational |
+| MQ4 Methane Gas Sensor | 2 | Propulsion / atmosphere analog | Operational |
+| Adafruit KB2040 | 1 | Auxiliary edge node (CircuitPython/Arduino) | On hand |
+| Inventr.io Shields Kit | 1 | Sensor expansion | On hand |
+| Inventr.io 37 Sensor Kit | 1 | General sensor suite | On hand |
+| Inventr.io Hero Board | 1 | Development board | On hand |
+| Canaduino WWVB/MSF 60 kHz Atomic Clock AM receiver | 1 | Precise time reference | Operational |
+| XIITIA GY-NEO7mV2 GPS Module | 3 | Orbital position simulation | Operational |
+| Meshnology Wio Tracker L1 (SX1262 LoRa + nRF52840, 3000 mAh) | 2 | Iteration 2 radio layer | On hand |
+| Breadboards, connectors, cables, soldering station | — | Integration | On hand |
+| Adafruit LSM6DSOX 6DoF IMU (STEMMA QT) | 1 | ADCS primary: accel + gyro, Qwiic/Stemma QT | Ordered |
+| Adafruit LSM9DS1 9DoF Breakout | 1 | ADCS magnetometer + secondary gyro/accel + temp | Ordered |
+| Adafruit BNO055 9DoF Absolute Orientation IMU | 1 | ADCS absolute orientation fusion output (quaternions) | Ordered |
+| Raspberry Pi Sense HAT | 1 | RPi-mounted sensor suite: LSM9DS1 + pressure + humidity + temp + 8x8 LED matrix | Ordered |
+| Adafruit TMAG5273 3D Hall Effect Magnetometer (STEMMA QT) | 1 | Precision magnetic field sensing | Ordered |
+| Adafruit Space Shuttle Discovery Solder Kit | 1 | Solder practice / desk hardware | Ordered |
 
 ---
 
 ## Subsystem mapping
 
-| Spacecraft subsystem | Sensor |
-|---|---|
-| ADCS | Accelerometer (Arduino Sensor Kit) |
-| EPS | Light sensor / LDR (solar panel / illumination analog) |
-| TCS | Temp/humidity sensor + Arduino Modulino Thermo |
-| Structural | Air pressure sensor + sound/microphone sensor |
-| Propulsion / atmosphere | MQ4 methane sensor |
-| Orbital position | GY-NEO7mV2 GPS + SGP4 propagation |
-| Time reference | WWVB 60 kHz atomic clock receiver |
-| Local status display | OLED (on Arduino) |
+| Spacecraft subsystem | Sensor | Notes |
+|---|---|---|
+| ADCS | LSM6DSOX (accel + gyro, STEMMA QT) + LSM9DS1 (magnetometer) + BNO055 (absolute orientation fusion) | LSM6DSOX is primary; BNO055 outputs quaternions directly; LSM9DS1 magnetometer enables magnetic attitude determination |
+| EPS | Light sensor / LDR (solar panel / illumination analog) | |
+| TCS | Temp/humidity sensor + Arduino Modulino Thermo + Sense HAT (HTS221 humidity + LPS25H pressure/temp) | Sense HAT adds second independent temperature measurement on the RPi |
+| Structural | Air pressure sensor + sound/microphone sensor | |
+| Propulsion / atmosphere | MQ4 methane sensor | |
+| Orbital position | GY-NEO7mV2 GPS + SGP4 propagation | |
+| Time reference | WWVB 60 kHz atomic clock receiver | |
+| Local status display | OLED (on Arduino) + Sense HAT 8x8 RGB LED matrix (on RPi) | LED matrix displays health vector state (green/amber/red) |
 
 ---
 
