@@ -20,6 +20,10 @@ _TLE_REFRESH_INTERVAL_S = 1800
 # Default tracked object: ISS (ZARYA)
 _DEFAULT_NORAD_ID = "25544"
 
+# Epoch: 2024-04-24. Used only when Space-Track is unreachable and no prior fetch
+# has been cached. Propagation accuracy degrades significantly beyond a few weeks
+# of epoch age. To improve resilience, persist the last successfully fetched TLE
+# to disk and reload it on startup before falling back to this constant.
 _FALLBACK_TLE = (
     "1 25544U 98067A   24115.54791667  .00016717  00000-0  10270-3 0  9997",
     "2 25544  51.6400 208.9163 0006317 323.8373  36.2351 15.50037786449239",
