@@ -63,7 +63,7 @@ class SubsystemHealth:
         if not all_v:
             self.state = SubsystemState.NOMINAL
         else:
-            worst = max(v.level for v in all_v)
+            worst = max(all_v, key=lambda v: v.level.value).level
             self.state = (SubsystemState.CRITICAL if worst == ViolationLevel.HARD
                           else SubsystemState.DEGRADED)
 
@@ -72,7 +72,7 @@ class SubsystemHealth:
         self.ae_score *= _AE_DECAY
         all_v = [v for vs in self._per_sensor.values() for v in vs]
         if all_v:
-            worst = max(v.level for v in all_v)
+            worst = max(all_v, key=lambda v: v.level.value).level
             w = _AE_HARD_WEIGHT if worst == ViolationLevel.HARD else _AE_SOFT_WEIGHT
             self.ae_score = min(1.0, self.ae_score + w)
 
