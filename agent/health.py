@@ -140,6 +140,8 @@ class HealthVector:
         )
 
     def to_payload(self, timestamp: datetime) -> dict:
+        if timestamp.tzinfo is None:
+            raise ValueError("timestamp must be UTC-aware; got a naive datetime")
         return {
             "node_id":               self.node_id,
             "timestamp":             timestamp.isoformat(),

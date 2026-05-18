@@ -86,16 +86,23 @@ def main() -> None:
             logger.info("arduino init: %s", payload)
             continue
 
-        ts_str = packet.get("ts", now.isoformat())
+        # serial_reader guarantees ts is already replaced with a UTC-aware ISO
+        # string. Parse it to preserve the exact measurement timestamp set by
+        # the reader. Reject naive datetimes (Arduino firmware sending a bare
+        # ISO string without tz offset) rather than silently storing them.
+        ts_str = packet.get("ts", "")
         try:
             recorded_at = datetime.fromisoformat(ts_str)
+            if recorded_at.tzinfo is None:
+                logger.warning("ts field missing timezone, using now: %r", ts_str)
+                recorded_at = now
         except ValueError:
             recorded_at = now
 
         full_sensor = f"{subsystem}_{sensor_name}"
 
-        client.ingest(sensor_name=full_sensor, recorded_at=recorded_at, payload=payload)
-        logger.debug("ingested %s", full_sensor)
+        if not client.ingest(sensor_name=full_sensor, recorded_at=recorded_at, payload=payload):
+            logger.warning("ingest failed for %s — reading dropped", full_sensor)
 
         # ── Tier 1 threshold evaluation ───────────────────────────────────────
         violations = evaluate(full_sensor, payload)
