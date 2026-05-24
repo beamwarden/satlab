@@ -93,23 +93,23 @@ Pivot axle: ~8mm OD hollow steel shaft, seated in 608ZZ bearings at each end of 
 graph TD
     BW([Beamwarden])
 
-    subgraph BASE[Base - stationary]
-        RPI[RPi Agent<br/>Outer attitude PID ~20 Hz]
-        R3[Uno R3<br/>Sensor telemetry pipeline]
+    subgraph BASE [Base stationary]
+        RPI[RPi Agent]
+        R3[Uno R3]
     end
 
-    subgraph PLAT[Platform - rotates]
-        AS[AS5600<br/>Magnetic encoder]
-        BN[BNO055<br/>Quaternion attitude]
-        LS[LSM6DSOX<br/>Gyro / tumbling FSM]
-        UQ[Uno Q<br/>SimpleFOC inner PID 100 Hz]
-        SF[SimpleFOC Shield<br/>3-phase FOC driver]
-        GM[GM4108H<br/>Gimbal motor]
+    subgraph PLAT [Platform rotates]
+        AS[AS5600]
+        BN[BNO055]
+        LS[LSM6DSOX]
+        UQ[Uno Q]
+        SF[SimpleFOC Shield]
+        GM[GM4108H]
         FW([Flywheel])
     end
 
-    BW <-->|attitude commands / telemetry| RPI
-    RPI <-->|serial - 4 wires through hollow pivot axle| UQ
+    BW <-->|attitude commands and telemetry| RPI
+    RPI <-->|serial 4 wires hollow pivot axle| UQ
     R3 -->|serial telemetry| RPI
     AS -->|I2C rotor position| UQ
     BN -->|I2C quaternion| UQ
