@@ -90,30 +90,30 @@ Pivot axle: ~8mm OD hollow steel shaft, seated in 608ZZ bearings at each end of 
 ## Architecture
 
 ```mermaid
-flowchart TD
-    BW(["Beamwarden\nground control"])
+graph TD
+    BW([Beamwarden])
 
-    subgraph BASE["Base — stationary"]
-        RPI["RPi Agent\nOuter attitude PID · ~20 Hz\nBNO055 quaternion via I²C"]
-        R3["Uno R3\nSensor telemetry pipeline"]
+    subgraph BASE[Base - stationary]
+        RPI[RPi Agent<br/>Outer attitude PID ~20 Hz]
+        R3[Uno R3<br/>Sensor telemetry pipeline]
     end
 
-    subgraph PLAT["Platform — rotates"]
-        AS["AS5600\nMagnetic encoder"]
-        BN["BNO055\nQuaternion attitude"]
-        LS["LSM6DSOX\nGyro · tumbling FSM"]
-        UQ["Uno Q\nSimpleFOC inner velocity PID · 100 Hz\nSerial command interface · tumbling FSM"]
-        SF["SimpleFOC Shield\n3-phase FOC motor driver"]
-        GM["GM4108H\nGimbal motor · 24N/22P · ~27KV"]
-        FW(["Flywheel\nAngular momentum storage"])
+    subgraph PLAT[Platform - rotates]
+        AS[AS5600<br/>Magnetic encoder]
+        BN[BNO055<br/>Quaternion attitude]
+        LS[LSM6DSOX<br/>Gyro / tumbling FSM]
+        UQ[Uno Q<br/>SimpleFOC inner PID 100 Hz]
+        SF[SimpleFOC Shield<br/>3-phase FOC driver]
+        GM[GM4108H<br/>Gimbal motor]
+        FW([Flywheel])
     end
 
-    BW <-->|"attitude commands / telemetry"| RPI
-    RPI <-->|"serial · 4 wires through hollow pivot axle"| UQ
-    R3 -->|"serial telemetry"| RPI
-    AS -->|"I²C · rotor position"| UQ
-    BN -->|"I²C · quaternion"| UQ
-    LS -->|"I²C · angular rate"| UQ
+    BW <-->|attitude commands / telemetry| RPI
+    RPI <-->|serial - 4 wires through hollow pivot axle| UQ
+    R3 -->|serial telemetry| RPI
+    AS -->|I2C rotor position| UQ
+    BN -->|I2C quaternion| UQ
+    LS -->|I2C angular rate| UQ
     UQ --> SF --> GM --> FW
 ```
 
