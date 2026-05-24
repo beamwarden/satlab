@@ -10,7 +10,7 @@ Fallback: if the pivot frame is not yet built, the wheel + control stack runs as
 
 - charleslabs.fr reaction wheel project (cascaded PID structure, tumbling FSM, flywheel sizing approach)
 - SimpleFOC documentation: docs.simplefoc.com
-- iPower GM4108H-120T datasheet
+- iPower GM4108H-120T product page: shop.iflight.com/ipower-motor-gm4108h-120t-brushless-gimbal-motor-pro217
 
 ---
 
@@ -20,11 +20,12 @@ Fallback: if the pivot frame is not yet built, the wheel + control stack runs as
 
 | Item | Part | Qty | ~Cost |
 |---|---|---|---|
-| Gimbal BLDC | iPower GM4108H-120T (120KV) | 1 | $25 |
+| Gimbal BLDC | iPower GM4108H-120T (24N/22P, ~27KV, 10mm hollow shaft) | 1 | $35.90 |
 | FOC driver | SimpleFOC Shield v2 | 1 | $30 |
 | Magnetic encoder | AS5600 breakout (I2C, 12-bit) | 1 | $5 |
-| Encoder magnet | 6×2.5mm diametrically magnetized disk | 1 | $2 |
+| Encoder magnet | 10×2mm diametrically magnetized disk (for 10mm shaft) | 1 | $2 |
 | Pivot bearings | 608ZZ | 2 | $2 |
+| Pivot axle | Hollow steel shaft, ~8mm OD, ~100mm length | 1 | $5 |
 | Power | 3S LiPo 1000mAh or bench PSU (12V/3A) | 1 | $15–40 |
 | Flywheel | 3D printed disk or machined aluminum | 1 | — |
 | Pivot frame | 3D printed or aluminum extrusion | — | — |
@@ -33,11 +34,11 @@ Fallback: if the pivot frame is not yet built, the wheel + control stack runs as
 
 | Item | Role |
 |---|---|
-| Arduino Uno Q | Wheel controller — runs SimpleFOC inner loop |
-| Arduino Uno R3 | Sensor telemetry — unchanged |
-| Raspberry Pi 3 (×2) | RPi agent / outer attitude loop |
-| BNO055 | Attitude reference — quaternion output to RPi outer loop |
-| LSM6DSOX | Gyro source for tumbling detection on Uno Q |
+| Arduino Uno Q | Wheel controller — mounts on platform, runs SimpleFOC inner loop |
+| Arduino Uno R3 | Sensor telemetry — unchanged, stays on base |
+| Raspberry Pi 3 (×2) | RPi agent / outer attitude loop — stays on base |
+| BNO055 | Attitude reference — mounts on platform, quaternion output to RPi outer loop |
+| LSM6DSOX | Gyro source for tumbling detection — mounts on platform, wired to Uno Q |
 | Breadboards, connectors, cables | Integration |
 
 ### Motor selection rationale
@@ -48,7 +49,15 @@ SimpleFOC Shield v2 stacks directly onto the Uno Q as an Arduino shield — no b
 
 ### Encoder mounting
 
-Epoxy the 6×2.5mm diametrically magnetized disk magnet to the motor shaft end. Mount the AS5600 breakout centered over the shaft on a small standoff (1–2mm gap). The AS5600 connects to Uno Q I2C (SDA/SCL).
+Epoxy a 10×2mm diametrically magnetized disk magnet to the motor shaft end (shaft OD is 10mm; hollow ID is 8mm). Mount the AS5600 breakout centered over the shaft on a small standoff (1–2mm gap). The AS5600 connects to Uno Q I2C (SDA/SCL).
+
+### Platform wire routing
+
+The Uno Q, SimpleFOC Shield, BNO055, and LSM6DSOX all mount on the rotating platform. The only wires that cross the pivot axis are the four connecting the platform to the base: 5V, GND, serial TX, serial RX.
+
+Route these four wires through the bore of a hollow pivot axle. Because the wires run along the axis of rotation — not offset from it — they experience zero torsion regardless of platform angle. The platform rotates around the wires; the wires do not move. No slipring required, no slack management, no wire stress at any angle.
+
+Pivot axle: ~8mm OD hollow steel shaft, seated in 608ZZ bearings at each end of the frame. Wires exit the axle bore at both ends and connect to the platform PCB/breadboard on one side and the base (RPi serial port, 5V supply) on the other.
 
 ---
 
@@ -59,17 +68,18 @@ Beamwarden
     │  attitude commands (target quaternion)
     │  telemetry (attitude, wheel RPM, fault state)
     ▼
-RPi Agent  ←── BNO055 (I2C, quaternion attitude)
-    │  outer attitude PID → wheel velocity setpoint (rad/s)
-    │  serial JSON → Uno Q
-    │  serial JSON ← Uno Q (wheel telemetry)
-    │
-    ├── Uno R3  (existing sensor telemetry pipeline — unchanged)
-    │
-    └── Uno Q   ←── AS5600 (I2C, rotor position)
-            SimpleFOC velocity mode
-            inner velocity PID @ 100Hz
-            → SimpleFOC Shield → GM4108H → flywheel
+RPi Agent [base]  ←─────────────── serial (4 wires through hollow pivot axle)
+    │  outer attitude PID                          │
+    │                                              │
+    ├── Uno R3 [base]                    ┌─────────┴──── PLATFORM (rotates) ────┐
+    │   existing sensor telemetry        │  Uno Q ←── AS5600 (I2C, rotor pos)   │
+    │                                    │  SimpleFOC velocity mode              │
+    └── serial ←──────────────────────── │  inner PID @ 100Hz                   │
+                                         │  → SimpleFOC Shield → GM4108H        │
+                                         │    → flywheel                         │
+                                         │  BNO055 (I2C → Uno Q → serial → RPi) │
+                                         │  LSM6DSOX (I2C → Uno Q, tumbling FSM)│
+                                         └───────────────────────────────────────┘
 ```
 
 ### Control loops
@@ -121,7 +131,7 @@ Responsibilities:
 
 Key SimpleFOC configuration:
 ```cpp
-BLDCMotor motor = BLDCMotor(11);        // pole pairs for GM4108H-120T
+BLDCMotor motor = BLDCMotor(11);        // 24N/22P → 11 pole pairs
 BLDCDriver3PWM driver = BLDCDriver3PWM(9, 5, 6, 8);
 MagneticSensorI2C sensor = MagneticSensorI2C(AS5600_I2C);
 
@@ -178,7 +188,7 @@ SATLAB_WHEEL_PORT    Serial device for Uno Q (e.g. /dev/ttyACM1)
    3D print or machine a disk. Heavier rim = more angular momentum storage = more authority. Size to match motor shaft.
 
 8. **Build pivot frame**
-   Mount platform on 608ZZ bearings for single-axis rotation. Secure motor + flywheel to platform. BNO055 mounts on the platform (rotates with it).
+   Thread four wires (5V, GND, TX, RX) through the hollow pivot axle. Seat axle in 608ZZ bearings at each end of the frame. Mount platform on axle. Secure motor + flywheel, Uno Q, BNO055, and LSM6DSOX to platform. Connect wire ends: platform side to Uno Q, base side to RPi serial and 5V supply.
 
 9. **Validate body counter-rotation**
    Command a wheel speed step. Observe platform counter-rotation. Verify BNO055 tracks the motion and outer loop converges.
@@ -191,6 +201,7 @@ SATLAB_WHEEL_PORT    Serial device for Uno Q (e.g. /dev/ttyACM1)
 ## Open questions
 
 - **Flywheel dimensions:** Moment of inertia target depends on platform mass and desired slew rate. Start with charleslabs approach (adjustable hardware placement) and measure empirically.
-- **Power architecture:** Bench PSU preferred during development. 3S LiPo for untethered operation. Determine whether Uno Q and SimpleFOC Shield share a supply rail with the rest of the system or run isolated.
+- **Power architecture:** Bench PSU (12V/3A) preferred during development; 3S LiPo for untethered operation (confirmed compatible). Determine whether Uno Q and SimpleFOC Shield share a supply rail with the rest of the system or run isolated.
+- **Max wheel speed:** ~325 RPM at 12V (no-load). Load reduces this; factor into angular momentum budget when sizing the flywheel.
 - **I2C bus:** BNO055 on RPi I2C. AS5600 on Uno Q I2C. No conflict. Confirm LSM6DSOX address (0x6A or 0x6B) does not collide with AS5600 (0x36) if both end up on the same Uno Q bus.
 - **Outer loop rate:** 20Hz is a starting point. May need adjustment based on BNO055 output data rate and serial latency.
