@@ -22,10 +22,19 @@ using a laptop before touching the RPis.
 **Alternative — Python CLI:**
 ```bash
 pip install meshtastic
+
+# macOS — port appears as /dev/cu.usbmodem* (not ttyACM0)
+meshtastic --port /dev/cu.usbmodem2101 --info
+
+# Linux (RPi) — port appears as /dev/ttyACM0
 meshtastic --port /dev/ttyACM0 --info
 ```
 Look for `myInfo` → `myNodeNum` in the output. The node ID in `!xxxxxxxx`
 format is the hex representation of that number.
+
+> **macOS note:** Always use `/dev/cu.usbmodem*` for outgoing serial connections on macOS.
+> `tty.usbmodem*` exists but hangs indefinitely. Run `ls /dev/cu.usbmodem*` to find the
+> exact port name after plugging in the device.
 
 ---
 
@@ -34,6 +43,10 @@ format is the hex representation of that number.
 Do for both units. The region and channel PSK must match for the two nodes
 to communicate. Easiest to do one unit at a time on the laptop via CLI.
 
+> **macOS port:** Use `/dev/cu.usbmodem*` (e.g. `/dev/cu.usbmodem2101`).
+> Run `ls /dev/cu.usbmodem*` after plugging in to get the exact name.
+> The commands below use `<PORT>` as a placeholder — substitute accordingly.
+
 **Install CLI if not already done:**
 ```bash
 pip install meshtastic
@@ -41,7 +54,7 @@ pip install meshtastic
 
 **Step 2a — Set region (required before the radio will transmit):**
 ```bash
-meshtastic --port /dev/ttyACM0 --set lora.region US
+meshtastic --port <PORT> --set lora.region US
 ```
 The device will reboot. Wait ~5 s and reconnect for subsequent commands.
 
@@ -49,35 +62,35 @@ The device will reboot. Wait ~5 s and reconnect for subsequent commands.
 `LONG_FAST` is appropriate for indoor bench use (SF11, ~1 kbps, good
 sensitivity). Matches the ≤1 kbps cross-link budget in the SBIR spec.
 ```bash
-meshtastic --port /dev/ttyACM0 --set lora.modem_preset LONG_FAST
+meshtastic --port <PORT> --set lora.modem_preset LONG_FAST
 ```
 
 **Step 2c — Configure a private channel on Unit A:**
 ```bash
 # Set channel name
-meshtastic --port /dev/ttyACM0 --ch-index 0 --ch-set name satlab
+meshtastic --port <PORT> --ch-index 0 --ch-set name satlab
 
 # Generate a random PSK and apply it
-meshtastic --port /dev/ttyACM0 --ch-index 0 --ch-set psk random
+meshtastic --port <PORT> --ch-index 0 --ch-set psk random
 ```
 
 **Step 2d — Export the config from Unit A and apply to Unit B:**
 ```bash
 # On Unit A — export full config to a YAML file
-meshtastic --port /dev/ttyACM0 --export-config > wio-a.yaml
+meshtastic --port <PORT> --export-config > wio-a.yaml
 
 # Plug in Unit B, import the same config
-meshtastic --port /dev/ttyACM0 --import-config wio-a.yaml
+meshtastic --port <PORT> --import-config wio-a.yaml
 ```
 This is the most reliable way to guarantee both units share the identical PSK.
 
 **Step 2e — Set node names (do separately per unit after import):**
 ```bash
 # Unit A
-meshtastic --port /dev/ttyACM0 --set-owner "beamrider-0003" --set-owner-short "BR03"
+meshtastic --port <PORT> --set-owner "beamrider-0003" --set-owner-short "BR03"
 
 # Unit B
-meshtastic --port /dev/ttyACM0 --set-owner "beamrider-0004" --set-owner-short "BR04"
+meshtastic --port <PORT> --set-owner "beamrider-0004" --set-owner-short "BR04"
 ```
 
 **Step 2f — Verify mesh connectivity before moving to the RPi:**
@@ -164,9 +177,15 @@ of `vector.to_payload()` and trim or compact if needed. The binary encoding
 specified in the proposal (≤256 bytes) is the Phase II target; for the
 Python prototype, compact JSON with short keys is a reasonable intermediate.
 
-**USB port ordering:** Never rely on `/dev/ttyACM0` vs `/dev/ttyACM1` —
+**USB port ordering (RPi/Linux):** Never rely on `/dev/ttyACM0` vs `/dev/ttyACM1` —
 the kernel assigns these on plug-in order. Always use `/dev/serial/by-id/`
 paths in env vars and the systemd service file.
+
+**macOS serial port naming:** Use `/dev/cu.usbmodem*` for CLI commands, not
+`/dev/tty.usbmodem*`. The `tty.*` variant hangs indefinitely when meshtastic
+tries to open it. The CH340 driver (WCH `wch-ch34x-usb-serial-driver` cask)
+is not needed for the nRF52840-based Wio Tracker L1 — it enumerates as a
+native USB CDC device without additional drivers.
 
 **Battery operation:** The 3000 mAh batteries allow the Wio Trackers to
 operate untethered. For bench testing, USB power from the RPi is simpler.

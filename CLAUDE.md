@@ -41,12 +41,13 @@ Beamwarden deploys and manages the Beamrider agent on the RPi via SSH/Ansible, m
 | XIITIA GY-NEO7mV2 GPS Module | 3 | Orbital position simulation | Operational |
 | Meshnology Wio Tracker L1 (SX1262 LoRa + nRF52840, 3000 mAh) | 2 | Iteration 2 radio layer | On hand |
 | Breadboards, connectors, cables, soldering station | — | Integration | On hand |
-| Adafruit LSM6DSOX 6DoF IMU (STEMMA QT) | 1 | ADCS primary: accel + gyro, Qwiic/Stemma QT | Ordered |
-| Adafruit LSM9DS1 9DoF Breakout | 1 | ADCS magnetometer + secondary gyro/accel + temp | Ordered |
-| Adafruit BNO055 9DoF Absolute Orientation IMU | 1 | ADCS absolute orientation fusion output (quaternions) | Ordered |
-| Raspberry Pi Sense HAT | 1 | RPi-mounted sensor suite: LSM9DS1 + pressure + humidity + temp + 8x8 LED matrix | Ordered |
-| Adafruit TMAG5273 3D Hall Effect Magnetometer (STEMMA QT) | 1 | Precision magnetic field sensing | Ordered |
-| Adafruit Space Shuttle Discovery Solder Kit | 1 | Solder practice / desk hardware | Ordered |
+| Adafruit LSM6DSOX 6DoF IMU (STEMMA QT) | 1 | ADCS primary: accel + gyro, Qwiic/Stemma QT | On hand |
+| Adafruit LSM9DS1 9DoF Breakout | 1 | ADCS magnetometer + secondary gyro/accel + temp | On hand |
+| Adafruit BNO055 9DoF Absolute Orientation IMU | 1 | ADCS absolute orientation fusion output (quaternions) | On hand |
+| Raspberry Pi Sense HAT | 1 | RPi-mounted sensor suite: LSM9DS1 + pressure + humidity + temp + 8x8 LED matrix | On hand |
+| Adafruit TMAG5273 3D Hall Effect Magnetometer (STEMMA QT) | 1 | Precision magnetic field sensing | On hand |
+| JST PH 2mm 3-Pin Socket to Color Coded Cable - 200mm | 1 | Wiring / connector | On hand |
+| Short Male Header Kit for ItsyBitsy | 4 | Headers / integration | On hand |
 
 ---
 
