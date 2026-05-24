@@ -89,23 +89,32 @@ Pivot axle: ~8mm OD hollow steel shaft, seated in 608ZZ bearings at each end of 
 
 ## Architecture
 
-```
-Beamwarden
-    │  attitude commands (target quaternion)
-    │  telemetry (attitude, wheel RPM, fault state)
-    ▼
-RPi Agent [base]  ←─────────────── serial (4 wires through hollow pivot axle)
-    │  outer attitude PID                          │
-    │                                              │
-    ├── Uno R3 [base]                    ┌─────────┴──── PLATFORM (rotates) ────┐
-    │   existing sensor telemetry        │  Uno Q ←── AS5600 (I2C, rotor pos)   │
-    │                                    │  SimpleFOC velocity mode              │
-    └── serial ←──────────────────────── │  inner PID @ 100Hz                   │
-                                         │  → SimpleFOC Shield → GM4108H        │
-                                         │    → flywheel                         │
-                                         │  BNO055 (I2C → Uno Q → serial → RPi) │
-                                         │  LSM6DSOX (I2C → Uno Q, tumbling FSM)│
-                                         └───────────────────────────────────────┘
+```mermaid
+flowchart TD
+    BW(["Beamwarden\nground control"])
+
+    subgraph BASE["Base — stationary"]
+        RPI["RPi Agent\nOuter attitude PID · ~20 Hz\nBNO055 quaternion via I²C"]
+        R3["Uno R3\nSensor telemetry pipeline"]
+    end
+
+    subgraph PLAT["Platform — rotates"]
+        AS["AS5600\nMagnetic encoder"]
+        BN["BNO055\nQuaternion attitude"]
+        LS["LSM6DSOX\nGyro · tumbling FSM"]
+        UQ["Uno Q\nSimpleFOC inner velocity PID · 100 Hz\nSerial command interface · tumbling FSM"]
+        SF["SimpleFOC Shield\n3-phase FOC motor driver"]
+        GM["GM4108H\nGimbal motor · 24N/22P · ~27KV"]
+        FW(["Flywheel\nAngular momentum storage"])
+    end
+
+    BW <-->|"attitude commands / telemetry"| RPI
+    RPI <-->|"serial · 4 wires through hollow pivot axle"| UQ
+    R3 -->|"serial telemetry"| RPI
+    AS -->|"I²C · rotor position"| UQ
+    BN -->|"I²C · quaternion"| UQ
+    LS -->|"I²C · angular rate"| UQ
+    UQ --> SF --> GM --> FW
 ```
 
 ### Control loops
