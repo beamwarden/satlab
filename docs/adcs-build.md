@@ -87,6 +87,8 @@ Pivot axle: ~8mm OD hollow steel shaft, seated in 608ZZ bearings at each end of 
 
 ---
 
+<div style="page-break-before: always;"></div>
+
 ## Architecture
 
 ```mermaid
