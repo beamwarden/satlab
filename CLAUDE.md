@@ -145,6 +145,50 @@ Register beamrider-0003 in Beamwarden (admin UI or API) before running the agent
 
 ---
 
+## RPi setup (Beamrider-0004 — Sense HAT node)
+
+**Hardware:** Raspberry Pi 3, Debian GNU/Linux 13 (Trixie), Raspberry Pi Sense HAT stacked on GPIO header. Runs `sense-agent/main.py` — no Arduino, no serial, no orbit propagation.
+
+```bash
+# 1. Enable I2C and SPI (required for Sense HAT sensors and LED matrix)
+sudo raspi-config nonint do_i2c 0
+sudo raspi-config nonint do_spi 0
+
+# 2. Install sense-hat via apt (installs RTIMULib2 and kernel driver; do NOT pip-install)
+sudo apt install sense-hat
+
+# 3. Clone the repo
+git clone https://github.com/<org>/satlab ~/satlab
+
+# 4. Install Python deps (httpx only; sense-hat is already installed via apt)
+pip install -r ~/satlab/sense-agent/requirements.txt --break-system-packages
+
+# 5. Populate the env file
+cat > ~/satlab/.env <<EOF
+BEAMWARDEN_URL=https://<beamwarden-host>
+BEAMWARDEN_TOKEN=<token-from-beamwarden-for-beamrider-0004>
+EOF
+
+# 6. Run the agent (verify sensors before installing service)
+cd ~/satlab/sense-agent && python3 main.py
+```
+
+Register beamrider-0004 in Beamwarden and add three sensors before running: `lsm9ds1` (adcs), `hts221` (tcs), `lps25h` (tcs). Then obtain the bearer token.
+
+First-time service install (from dev machine, after Pi is reachable):
+```bash
+./deploy/install-sense-service.sh --host beamrider-0004.local
+```
+
+Subsequent deploys:
+```bash
+./deploy/deploy-sense.sh
+```
+
+**LED matrix health indicator:** green = all sensors ingesting OK, amber = partial failure, red = all sensors failed or Beamwarden unreachable.
+
+---
+
 ## Arduino development (on beamrider-0003)
 
 Sketches are compiled and uploaded directly from the RPi using **arduino-cli**. Kill the satlab agent before uploading (it holds the serial port).

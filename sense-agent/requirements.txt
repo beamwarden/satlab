@@ -1,0 +1,3 @@
+httpx>=0.27
+# sense-hat is installed via apt on the Pi (sudo apt install sense-hat)
+# which pulls RTIMULib2 and the framebuffer driver. Do not pip-install it.
