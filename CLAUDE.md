@@ -27,7 +27,8 @@ Beamwarden deploys and manages the Beamrider agent on the RPi via SSH/Ansible, m
 
 | Item | Qty | Role | Status |
 |---|---|---|---|
-| Raspberry Pi 3 (32 GB) | 2 | Flight computer / RPi agent | Operational |
+| Raspberry Pi 3 (32 GB) | 2 | Flight computer / RPi agent (beamrider-0003) | Operational |
+| Raspberry Pi 5 | 1 | Sense HAT node (beamrider-0004) | Provisioning |
 | Arduino Uno R3 | 1 | Primary subsystem controller | Operational |
 | Arduino Uno Q | 1 | Secondary / spare | On hand |
 | Arduino Sensor Kit | 1 | General sensors | Operational |
@@ -147,7 +148,9 @@ Register beamrider-0003 in Beamwarden (admin UI or API) before running the agent
 
 ## RPi setup (Beamrider-0004 — Sense HAT node)
 
-**Hardware:** Raspberry Pi 3, Debian GNU/Linux 13 (Trixie), Raspberry Pi Sense HAT stacked on GPIO header. Runs `sense-agent/main.py` — no Arduino, no serial, no orbit propagation.
+**Hardware:** Raspberry Pi 5, Debian GNU/Linux 13 (Trixie), Raspberry Pi Sense HAT stacked on GPIO header. Runs `sense-agent/main.py` — no Arduino, no serial, no orbit propagation.
+
+**Pi 5 / Sense HAT I2C note:** On Pi 5, the GPIO header I2C bus is still i2c-1, but RTIMULib may auto-detect the wrong bus. If IMU reads fail, check which bus has the sensors (`sudo i2cdetect -y 1` vs `-y 4`) and edit `/etc/RTIMULib.ini` → set `I2CBus=1` (or whichever bus responds). The apt `sense-hat` package on Trixie is Pi 5 compatible.
 
 ```bash
 # 1. Enable I2C and SPI (required for Sense HAT sensors and LED matrix)
