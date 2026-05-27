@@ -41,6 +41,7 @@ Beamwarden deploys and manages the Beamrider agent on the RPi via SSH/Ansible, m
 | Canaduino WWVB/MSF 60 kHz Atomic Clock AM receiver | 1 | Precise time reference | Operational |
 | XIITIA GY-NEO7mV2 GPS Module | 3 | Orbital position simulation | Operational |
 | Meshnology Wio Tracker L1 (SX1262 LoRa + nRF52840, 3000 mAh) | 2 | Iteration 2 radio layer | On hand |
+| NUCLEO-144 STM32H753ZI | 1 | Cortex-M7 480MHz eval board — candidate ADCS inner loop controller | On hand |
 | Breadboards, connectors, cables, soldering station | — | Integration | On hand |
 | Adafruit LSM6DSOX 6DoF IMU (STEMMA QT) | 1 | ADCS primary: accel + gyro, Qwiic/Stemma QT | On hand |
 | Adafruit LSM9DS1 9DoF Breakout | 1 | ADCS magnetometer + secondary gyro/accel + temp | On hand |
