@@ -28,7 +28,7 @@ Beamwarden deploys and manages the Beamrider agent on the RPi via SSH/Ansible, m
 | Item | Qty | Role | Status |
 |---|---|---|---|
 | Raspberry Pi 3 (32 GB) | 2 | Flight computer / RPi agent (beamrider-0003) | Operational |
-| Raspberry Pi 5 | 1 | Sense HAT node (beamrider-0004) | Provisioning |
+| Raspberry Pi 5 | 1 | Sense HAT node (beamrider-0004) | Operational |
 | Arduino Uno R3 | 1 | Primary subsystem controller | Operational |
 | Arduino Uno Q | 1 | Secondary / spare | On hand |
 | Arduino Sensor Kit | 1 | General sensors | Operational |
