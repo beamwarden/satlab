@@ -32,6 +32,14 @@ All three sensors are onboard the Sense HAT — no external wiring. 10-second in
 
 ---
 
+## 2026-05-27
+
+### NUCLEO-144 STM32H753ZI received
+
+Cortex-M7 at 480MHz, 2MB flash (dual-bank), 1MB RAM. Candidate for reaction wheel inner loop controller or dedicated ADCS processor. Role in satlab TBD.
+
+---
+
 ## 2026-05-25
 
 ### ADCS build document — reaction wheel architecture
