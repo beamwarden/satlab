@@ -24,7 +24,11 @@
  *   Adafruit DPS310  — patch required: Adafruit_DPS310.cpp line 134,
  *                      change (chip_id.read() != 0x10) to
  *                      ((chip_id.read() & 0xF0) != 0x10) to accept rev 0x11
- *   Seeed Arduino LIS3DHTR
+ *
+ * LIS3DH is driven via direct I2C (no library). The Seeed LIS3DHTR library
+ * reads only the high byte of the 16-bit register and applies a fixed 50mg
+ * sensitivity factor regardless of chip mode, giving 50mg quantization.
+ * Direct register access with CTRL_REG4 HR bit gives 12-bit / 1mg resolution.
  *
  * OLED deferred to iteration 2 (Wio Tracker, nRF52840, 256 KB RAM).
  * Uno has only 988 bytes of heap available with this sensor suite loaded;
@@ -34,7 +38,6 @@
 #include <Wire.h>
 #include <Adafruit_AHTX0.h>
 #include "Adafruit_DPS310.h"
-#include "LIS3DHTR.h"
 
 // ── Pin config ───────────────────────────────────────────────────────────────
 #define PIN_LIGHT       A0
@@ -43,10 +46,54 @@
 // ── Timing ───────────────────────────────────────────────────────────────────
 #define SAMPLE_INTERVAL_MS  10000UL   // 10 seconds
 
+// ── LIS3DH direct I2C ────────────────────────────────────────────────────────
+// Direct register access bypasses the Seeed library which reads only the high
+// byte and applies a hardcoded 50mg sensitivity factor regardless of chip mode.
+// CTRL_REG1 0x57: ODR=100Hz, normal mode, all axes enabled
+// CTRL_REG4 0x08: HR=1 (high-resolution 12-bit), FS=00 (±2g), sensitivity=1mg/LSB
+#define LIS3DH_ADDR      0x19
+#define LIS3DH_WHO_AM_I  0x0F
+#define LIS3DH_CTRL_REG1 0x20
+#define LIS3DH_CTRL_REG4 0x23
+#define LIS3DH_OUT_X_L   0x28
+
+static bool lis3dh_write_reg(uint8_t reg, uint8_t val) {
+    Wire.beginTransmission(LIS3DH_ADDR);
+    Wire.write(reg);
+    Wire.write(val);
+    return Wire.endTransmission() == 0;
+}
+
+static bool lis3dh_init() {
+    Wire.beginTransmission(LIS3DH_ADDR);
+    Wire.write(LIS3DH_WHO_AM_I);
+    if (Wire.endTransmission() != 0) return false;
+    Wire.requestFrom((uint8_t)LIS3DH_ADDR, (uint8_t)1);
+    if (!Wire.available() || Wire.read() != 0x33) return false;
+    if (!lis3dh_write_reg(LIS3DH_CTRL_REG1, 0x57)) return false;  // 100Hz, normal, XYZ on
+    if (!lis3dh_write_reg(LIS3DH_CTRL_REG4, 0x08)) return false;  // HR, ±2g
+    return true;
+}
+
+static bool lis3dh_read(float* ax, float* ay, float* az) {
+    Wire.beginTransmission(LIS3DH_ADDR);
+    Wire.write(LIS3DH_OUT_X_L | 0x80);  // 0x80 = auto-increment
+    if (Wire.endTransmission() != 0) return false;
+    Wire.requestFrom((uint8_t)LIS3DH_ADDR, (uint8_t)6);
+    if (Wire.available() < 6) return false;
+    int16_t rx = (int16_t)(Wire.read() | ((uint16_t)Wire.read() << 8));
+    int16_t ry = (int16_t)(Wire.read() | ((uint16_t)Wire.read() << 8));
+    int16_t rz = (int16_t)(Wire.read() | ((uint16_t)Wire.read() << 8));
+    // HR mode: 12-bit data in bits 15:4, 1mg/LSB at ±2g
+    *ax = (rx >> 4) * 0.001f;
+    *ay = (ry >> 4) * 0.001f;
+    *az = (rz >> 4) * 0.001f;
+    return true;
+}
+
 // ── Sensor objects ────────────────────────────────────────────────────────────
-Adafruit_AHTX0    aht;
-Adafruit_DPS310   dps;
-LIS3DHTR<TwoWire> lis;
+Adafruit_AHTX0 aht;
+Adafruit_DPS310 dps;
 
 bool aht_ok  = false;
 bool dps_ok  = false;
@@ -87,13 +134,7 @@ void setup() {
 
     aht_ok  = aht.begin();
     dps_ok  = dps.begin_I2C(0x77);
-    lis.begin(Wire, 0x19);
-    lis_ok  = lis.available();
-    if (lis_ok) {
-        lis.setOutputDataRate(LIS3DHTR_DATARATE_100HZ);
-        lis.setFullScaleRange(LIS3DHTR_RANGE_2G);
-        lis.setHighSolution(true);
-    }
+    lis_ok  = lis3dh_init();
 
     // Emit sensor init status for RPi agent
     Serial.print("{\"ts\":");
@@ -152,16 +193,16 @@ void loop() {
         emit_packet("structural", "bmp280", buf);   // sensor name unchanged in Beamwarden
     }
 
-    // ── ADCS: LIS3DHTR 3-axis accelerometer ─────────────────────────────
+    // ── ADCS: LIS3DH 3-axis accelerometer (direct I2C, 12-bit HR, 1mg/LSB) ──
     if (lis_ok) {
-        float ax = lis.getAccelerationX();
-        float ay = lis.getAccelerationY();
-        float az = lis.getAccelerationZ();
-        char sax[12], say[12], saz[12];
-        dtostrf(ax, 1, 4, sax);
-        dtostrf(ay, 1, 4, say);
-        dtostrf(az, 1, 4, saz);
-        snprintf(buf, sizeof(buf), "{\"ax_g\":%s,\"ay_g\":%s,\"az_g\":%s}", sax, say, saz);
-        emit_packet("adcs", "lis3dh", buf);
+        float ax, ay, az;
+        if (lis3dh_read(&ax, &ay, &az)) {
+            char sax[12], say[12], saz[12];
+            dtostrf(ax, 1, 4, sax);
+            dtostrf(ay, 1, 4, say);
+            dtostrf(az, 1, 4, saz);
+            snprintf(buf, sizeof(buf), "{\"ax_g\":%s,\"ay_g\":%s,\"az_g\":%s}", sax, say, saz);
+            emit_packet("adcs", "lis3dh", buf);
+        }
     }
 }
