@@ -156,8 +156,10 @@ void loop() {
 
     // ── EPS: light (solar panel / illumination analog) ────────────────────
     int light_raw = analogRead(PIN_LIGHT);
-    int light_pct = (int)((light_raw * 100L) / 1023);
-    snprintf(buf, sizeof(buf), "{\"raw\":%d,\"pct\":%d}", light_raw, light_pct);
+    float light_pct_f = (float)light_raw * 100.0f / 1023.0f;
+    char spct[8];
+    dtostrf(light_pct_f, 1, 2, spct);
+    snprintf(buf, sizeof(buf), "{\"raw\":%d,\"pct\":%s}", light_raw, spct);
     emit_packet("eps", "light", buf);
 
     // ── Structural: sound (microphone — vibration / structural health) ────
@@ -173,8 +175,8 @@ void loop() {
         temp_c   = temp_ev.temperature;
         humidity = humidity_ev.relative_humidity;
         char st[10], sh[10];
-        dtostrf(temp_c,   1, 2, st);
-        dtostrf(humidity, 1, 2, sh);
+        dtostrf(temp_c,   1, 3, st);
+        dtostrf(humidity, 1, 3, sh);
         snprintf(buf, sizeof(buf), "{\"temp_c\":%s,\"humidity_pct\":%s}", st, sh);
         emit_packet("tcs", "dht", buf);
     }
@@ -186,9 +188,9 @@ void loop() {
         dps.getEvents(&temp_ev, &pressure_ev);
         pressure_hpa      = pressure_ev.pressure;
         float dps_temp    = temp_ev.temperature;
-        char sp[10], sbt[10];
-        dtostrf(pressure_hpa, 1, 2, sp);
-        dtostrf(dps_temp,     1, 2, sbt);
+        char sp[12], sbt[10];
+        dtostrf(pressure_hpa, 1, 3, sp);
+        dtostrf(dps_temp,     1, 3, sbt);
         snprintf(buf, sizeof(buf), "{\"pressure_hpa\":%s,\"temp_c\":%s}", sp, sbt);
         emit_packet("structural", "bmp280", buf);   // sensor name unchanged in Beamwarden
     }
