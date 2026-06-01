@@ -89,6 +89,11 @@ void setup() {
     dps_ok  = dps.begin_I2C(0x77);
     lis.begin(Wire, 0x19);
     lis_ok  = lis.available();
+    if (lis_ok) {
+        lis.setOutputDataRate(LIS3DHTR_DATARATE_100HZ);
+        lis.setFullScaleRange(LIS3DHTR_RANGE_2G);
+        lis.setHighSolution(true);
+    }
 
     // Emit sensor init status for RPi agent
     Serial.print("{\"ts\":");
@@ -152,10 +157,10 @@ void loop() {
         float ax = lis.getAccelerationX();
         float ay = lis.getAccelerationY();
         float az = lis.getAccelerationZ();
-        char sax[10], say[10], saz[10];
-        dtostrf(ax, 1, 3, sax);
-        dtostrf(ay, 1, 3, say);
-        dtostrf(az, 1, 3, saz);
+        char sax[12], say[12], saz[12];
+        dtostrf(ax, 1, 4, sax);
+        dtostrf(ay, 1, 4, say);
+        dtostrf(az, 1, 4, saz);
         snprintf(buf, sizeof(buf), "{\"ax_g\":%s,\"ay_g\":%s,\"az_g\":%s}", sax, say, saz);
         emit_packet("adcs", "lis3dh", buf);
     }
