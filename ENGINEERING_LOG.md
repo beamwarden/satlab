@@ -5,6 +5,130 @@ Most recent entry first.
 
 ---
 
+## 2026-06-16
+
+### ISM330DHCX ×2 received — hardware signature commissioning stack built
+
+Second ISM330DHCX arrived, completing the redundant pair. Both units now on hand and
+can share the RPi I2C bus via SA0 pin strapping: unit 0 at 0x6A (SA0 low), unit 1 at
+0x6B (SA0 high). The ISM330DHCX is a significant step up from the LIS3DH currently in
+the Arduino sketch: 6-DoF industrial-grade, ±125 dps gyro range, 0.061 mg/LSB accel,
+104 Hz ODR easily achievable over I2C.
+
+**Context from prior sensor fingerprint experiment (2026-06-07 worklog entry):**
+The beamwarden-side fingerprint experiment showed that static bias offset drifts enough
+within three weeks to collapse same-model (ISM330DHCX) test accuracy to ~61%. The key
+insight was that bias is not a stable identity primitive. The overlapping Allan deviation
+(OADEV) noise floor -- ARW, bias instability, rate random walk -- is a physical property
+of the die and is stable over time; it doesn't drift in the way a bias offset does. This
+session implements the OADEV-based approach that the 2026-06-07 entry marked as deferred.
+
+**Cross-repo research before building:**
+Searched satlab, beamwarden, beamrider-agent, ne-body for existing auth hooks and
+fingerprinting primitives. Findings: Beamwarden auth is token-only; `Beamrider.metadata`
+(JSONField) already exists and is the right place to store commissioned fingerprints;
+`HealthVector.hmac_tag` in `agent/health.py` was explicitly deferred and is the natural
+attestation insertion point; `Beamrider.serial_number` exists but is set by the operator,
+not derived from hardware. No noise characterization existed anywhere.
+
+**Full commissioning stack built (`satlab/commissioning/`):**
+
+- `ism330dhcx.py` — direct smbus2 driver; no library dependency. Reads WHO_AM_I (0x6B),
+  configures CTRL1_XL (ODR=104 Hz, ±2g) and CTRL2_G (ODR=104 Hz, ±125 dps via FS_125
+  bit), reads 12-byte block from OUTX_L_G. STATUS_REG polling to avoid busy-reading
+  stale data. Sensitivity: 0.061 mg/LSB accel, 4.375 mdps/LSB gyro.
+
+- `capture.py` — interleaved STATUS_REG poll loop for both units on the same bus.
+  At 104 Hz (9.6 ms/sample), two I2C reads + status checks fit comfortably within the
+  ODR window at 100 kHz bus speed. Saves timestamped 6-channel arrays to `.npz`.
+  Progress printed every 10 s. Target duration: 120 s (12480 samples per unit).
+
+- `allan.py` — overlapping Allan variance (OADEV) from phase sequence.
+  `AVAR(tau) = mean((x[j+2m] - 2x[j+m] + x[j])^2) / (2*tau^2)`.
+  Tau points spaced logarithmically (20% step). For white noise with std sigma,
+  ADEV(tau) = sigma*sqrt(tau0/tau) — slope -1/2 on log-log; verified analytically.
+
+- `fingerprint.py` — ADEV evaluated at fixed tau points [0.1, 0.3, 1.0, 3.0, 10.0, 30.0] s
+  per channel (6 channels × 6 taus = 36 values per unit). Fingerprint hash = SHA-256 of
+  flattened vector at 4-decimal scientific notation. HMAC key = SHA-256 of concatenated
+  hashes from both units (32 bytes). Cosine distance and MAPE provided for
+  distinguishability reporting and ongoing verification respectively.
+
+- `commission.py` — orchestrates: capture (120 s) → fingerprints → saves `fingerprint.json`
+  (Beamwarden-safe, no key) + prints `SATLAB_HW_KEY=<hex>` for operator to add to .env.
+
+- `verify.py` — 30 s re-capture (covers taus [0.1, 0.3, 1.0, 3.0] s), MAPE vs baseline.
+  Threshold 15%. Exit code 0/1 for scripted checks.
+
+**Beamwarden management command (`set_hw_signature`):**
+Loads `fingerprint.json` into `Beamrider.metadata["hw_signature"]` via `update_fields`.
+Preserves existing metadata. Guards against accidentally storing `hw_key_hex` server-side
+(raises CommandError if the field appears in the JSON -- it should never leave the device).
+
+**`agent/health.py` HMAC tag:**
+`_HW_KEY` loaded at module import from `SATLAB_HW_KEY` env. If present, `to_payload()`
+computes `HMAC-SHA256(hw_key, "{node_id}:{sequence}")[:32]` and writes it to `hmac_tag`.
+Zero behavioral change if env var is absent -- the existing `None` default is preserved.
+The HMAC binds the physical hardware (via key derived from fingerprint) to the sequence
+number; replay of old packets is caught by the sequence counter.
+
+**Security model:**
+If an attacker physically substitutes a unit, the noise fingerprint changes at the next
+commissioning-tier check, the derived key mismatches, and HMAC tags diverge. Beamwarden
+does not yet verify the HMAC server-side -- it stores the tag alongside the health vector
+reading. Server-side verification is the next step: compare the incoming `hmac_tag`
+against `HMAC-SHA256(Beamrider.metadata["hw_signature"]["...hw_key..."], msg)`. The
+key is never sent over the wire; it is commissioned locally and stored only on the device.
+
+**CLAUDE.md updated:** ISM330DHCX ×2 added to hardware inventory table and subsystem
+mapping (ADCS row). `SATLAB_HW_KEY` added to env vars section. `commissioning/` added to
+repo structure tree. Full commissioning runbook added as a new section.
+
+### Open threads
+
+- **Hardware not yet wired:** SA0 pin strapping and I2C connections to RPi i2c-1 header
+  still need to be made. Verify with `sudo i2cdetect -y 1` before running commission.py.
+- **Actual distinguishability unknown:** cosine distance between the two dies will be
+  measured at commissioning time. Prior LIS3DH vs LSM9DS1 result was 99-100% accuracy
+  (different chip models; trivially distinguishable). Same-model ISM330DHCX die
+  distinguishability is the open empirical question this experiment answers.
+- **MAPE threshold unvalidated:** 15% was chosen as a reasonable starting point.
+  After the first commissioning run, MAPE distribution across 3-4 verify captures will
+  establish the empirical baseline for threshold calibration.
+- **Server-side HMAC verification not yet built:** Beamwarden stores the tag but does
+  not verify it. The verification path requires a Beamwarden API endpoint or background
+  task that reads `Beamrider.metadata["hw_key_hex"]` -- but this contradicts the
+  current design (key stays local). Better approach: Beamwarden stores the fingerprint
+  hash, not the key; verification is a local-only operation run by the operator.
+  Revisit the trust model before implementing Beamwarden-side verification.
+
+### beamrider-0004 amber/red incident — Beamwarden ingest timeouts
+
+LED matrix transitioned amber then red during normal operation (evening, 2026-06-15). Log review via `journalctl -u sense-agent` confirmed sensors were healthy throughout: all three channels (lsm9ds1, hts221, lps25h) were cycling ok=3 fail=0 up to 21:12:57.
+
+Root cause: `app.beamwarden.com/api/v1/ingest/` POST requests began timing out at 21:13:17. Network or Beamwarden-side issue; the Pi and I2C sensors were nominal throughout.
+
+| Time | Event |
+|---|---|
+| 21:12:57 | Last clean cycle: ok=3 fail=0 |
+| 21:13:17 | First timeout (attempt 1/2); one sensor retried successfully → LED amber |
+| 21:14:39 | ok=1 fail=2 |
+| 21:15:53 | ok=0 fail=3 → LED red |
+
+The LED health indicator behaved correctly: amber on partial ingest failure, red on total failure. No code changes required. If this recurs, check Beamwarden Cloud Run instance health and ingest endpoint latency before assuming a Pi-side fault.
+
+---
+
+### RTL-SDR ground station intent identified from what.md
+
+Reviewed `what.md` (original project scoping document). The two Raspberry Pi 4s and RTL-SDR Blog V3 R860 dipole antenna kit on hand were earmarked for a ground station node: RPi 4 + RTL-SDR receiving real or CubeSatSim-broadcast satellite signals on 433 MHz, closing the transmit/receive loop with the flight-side simulator and ingesting received signal data to Beamwarden as a Beamrider node.
+
+Reference cited in what.md: github.com/alanbjohnston/CubeSatSim (broadcasts simulated telemetry over FM/Morse; RTL-SDR ground station receives it). This was never started. The build proceeded directly to USB-serial (iteration 1) and then the Sense HAT node. RPi 4s and RTL-SDR remain unallocated.
+
+Candidate next hardware build: RPi 4 + RTL-SDR V3 + dipole as a dedicated ground station iteration, completing the satlab signal chain: Arduino sensors → flight computer → LoRa/RF → ground station → Beamwarden.
+
+---
+
 ## 2026-06-05
 
 ### Ender 3 online; reaction-wheel flywheel CAD started; print pipeline shaken out
