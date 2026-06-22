@@ -1,5 +1,5 @@
 # satlab — Project Plan
-**Last updated:** 2026-06-17
+**Last updated:** 2026-06-22
 
 satlab is a hardware-in-the-loop satellite simulator lab station. It consists of physical nodes running real sensors and actuators, integrated with Beamwarden as registered Beamrider nodes. The lab serves two purposes: technical credentialing for SBIR and commercial proposals, and ongoing experimentation with sensor fusion, hardware attestation, and autonomous health management.
 
@@ -44,19 +44,23 @@ All three nodes ingest to production Beamwarden (`app.beamwarden.com`). Beamforg
 - `agent/health.py`: HMAC tag computed via `SATLAB_HW_KEY` env var on every health vector publish
 
 **Hardware on hand:**
-- ST ISM330DHCX ×2 (0x6A + 0x6B via SA0 pin strapping)
-- SparkFun ISM330DHCX Qwiic (SEN-20176, third unit)
+- SparkFun Micro 6DoF IMU ISM330DHCX (SEN-20176) ×2 (commissioning pair)
+- SparkFun Qwiic pHAT v2.0 for Raspberry Pi (DEV-15945) — on hand (arrived Jun 22)
+- SAC0307 0.6mm solder + Chip Quik no-clean flux pen — on hand
 
 **Remaining steps:**
-1. Wire SA0 pins on both units (GND → 0x6A, 3.3V → 0x6B); connect to RPi i2c-1
-2. Verify with `sudo i2cdetect -y 1`; confirm both addresses appear
-3. Run `python commission.py --bus 1 --duration 120`; record `SATLAB_HW_KEY`
-4. Run `set_hw_signature` management command on Beamwarden
-5. Add `SATLAB_HW_KEY` to beamrider-0003 `.env`; restart agent; confirm `hmac_tag` in payloads
-6. Run `verify.py` after 24 h to confirm MAPE stays below 15% threshold
-7. Assess same-model distinguishability (cosine distance between the two dies)
+1. Install Qwiic pHAT v2.0 on beamrider-0003 RPi GPIO header
+2. On Unit A (SEN-20176): bridge the ADDR solder jumper on the back of the board → address 0x6A
+3. On Unit B (SEN-20176): leave ADDR jumper open (factory default) → address 0x6B
+4. Connect both units to the Qwiic pHAT via Qwiic cables (daisy-chain or two separate cables); pHAT routes to RPi i2c-1
+5. Verify with `sudo i2cdetect -y 1`; confirm both addresses appear
+6. Run `python commission.py --bus 1 --duration 120`; record `SATLAB_HW_KEY`
+7. Run `set_hw_signature` management command on Beamwarden
+8. Add `SATLAB_HW_KEY` to beamrider-0003 `.env`; restart agent; confirm `hmac_tag` in payloads
+9. Run `verify.py` after 24 h to confirm MAPE stays below 15% threshold
+10. Assess same-model distinguishability (cosine distance between the two dies)
 
-**Blocker:** None. Hardware and software both ready. Physical wiring is the only remaining step.
+**Blocker:** None. All hardware on hand. Ready to commission.
 
 ---
 
@@ -195,11 +199,11 @@ Items needed before blocked tracks can proceed, in priority order:
 
 | Item | Blocks | Priority |
 |---|---|---|
-| iPower GM4108H-120T BLDC motor | Track 3 | High |
-| SimpleFOC Shield v2 | Track 3 | High |
-| AS5600 encoder + 10×2mm magnet | Track 3 | High |
-| 608ZZ bearings ×2 | Track 3 | High |
-| M8 hardware (bolts + nuts) | Track 3 | High |
+| iPower GM4108H-120T BLDC motor | Track 3 | Ordered — Amazon, est. Jun 30–Jul 9 |
+| SimpleFOC Shield v2 (IR2104/INA240) | Track 3 | On hand |
+| AS5600 encoder + 10×2mm magnet (3-pack) | Track 3 | On hand |
+| 608ZZ bearings ×2 | Track 3 | On hand |
+| M8 hardware (bolts + nuts) | Track 3 | To acquire — hardware store |
 
 ---
 

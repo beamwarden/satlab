@@ -47,11 +47,32 @@ Hardware option (permanent, avoids saved offset dependency): loosen Z endstop sw
 
 GM4108H-120T still in transit (est. Jun 30–Jul 9). All other Track 3 hardware is on hand. M8 bolts + nuts still needed from hardware store.
 
+### DigiKey order arrived — Track 1 blocker cleared
+
+DigiKey package arrived 2026-06-22 (two days early vs. est. Jun 23–25). Contents confirmed:
+
+| Item | Status |
+|---|---|
+| SparkFun Qwiic pHAT v2.0 for Raspberry Pi (DEV-15945) | On hand |
+| SAC0307 0.6mm lead-free solder wire (Olimex) | On hand |
+| Chip Quik no-clean flux pen CQ4LF (0.34 oz) | On hand |
+
+Track 1 hardware is now complete. No remaining blockers before commissioning can begin.
+
+**Next commissioning steps:**
+1. Solder bridge the ADDR pad on SEN-20176 Unit A → address 0x6A
+2. Install Qwiic pHAT on beamrider-0003 GPIO header
+3. Connect both SEN-20176 units via Qwiic cables to pHAT
+4. Verify `sudo i2cdetect -y 1` shows both 0x6A and 0x6B
+5. Run `python commissioning/commission.py --bus 1 --duration 120`
+
+`what.md` and `hardware-inventory.md` updated to reflect arrival and clear the blocker.
+
 ### Open threads
 
-- Track 1: Qwiic pHAT (DEV-15945) from DigiKey expected Jun 23–25. Arrives → bridge ADDR pad on one SEN-20176 unit → connect via Qwiic → run commissioning
-- Track 3: Z offset calibration blocks coupon print; coupon print blocks flywheel print; GM4108H blocks motor mount CAD finalization
-- M8 hardware: hardware store errand, not ordered
+- Track 1: No blocker. Ready to commission when bench time available.
+- Track 3: Z offset calibration blocks coupon print; coupon print blocks flywheel print; GM4108H blocks motor mount CAD finalization.
+- M8 hardware: hardware store errand, not ordered.
 
 ---
 
