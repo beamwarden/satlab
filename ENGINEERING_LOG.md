@@ -5,6 +5,135 @@ Most recent entry first.
 
 ---
 
+## 2026-06-22
+
+### Print session (Jun 18) — Z offset failure + nozzle replacement
+
+**Objective:** print `cad/print_test_coupon.scad` on new PEI flex plate, measure with calipers, validate hole fit.
+
+**What happened:** PEI plate seated and bed re-leveled. Print started. Nozzle was not reaching the bed — extruding in mid-air. Root cause: the Z endstop position was not adjusted after plate installation. The leveling procedure sets the bed level relative to wherever Z=0 is, but Z=0 is defined by the physical endstop switch position. The PEI plate (magnetic base sheet + spring steel sheet) adds roughly 3mm of total height above the bare aluminum bed. The endstop switch was not lowered to compensate, so the printer homes with the nozzle ~3mm above the new print surface.
+
+Mid-air extrusion produced a blob on the nozzle tip. Nozzle clogged. Cold-pull and manual push did not clear it. Nozzle removed and replaced.
+
+**Nozzle replacement procedure (hot swap):**
+- Raised temp to 260°C to soften any heat-creep bond between nozzle and heatbreak shoulder
+- Removed old nozzle at 260°C with wrench; hot block held with cloth
+- New MK8 nozzle threaded in finger-tight at temperature
+- Cooled to 200°C; final torque snug (not overtorqued — sealing against heatbreak shoulder)
+- Do not tighten cold: nozzle contracts on cooling and will unseat the seal
+
+**Session outcome:** nozzle is fresh and printer is in a known state. No coupon print completed.
+
+### Next print session — Z offset calibration required before printing
+
+The Z endstop needs physical adjustment or a software offset. Preferred path (software, fastest):
+
+1. Start a print (test coupon is fine)
+2. As first layer begins, navigate to Tune → Z Offset on LCD
+3. Baby-step the Z offset negative (down) in 0.05mm increments until filament squishes visibly onto PEI surface
+4. Good first layer: thin, slightly flattened bead, no gaps, sticks immediately
+5. Save offset with M500 from terminal or via LCD
+6. Let print complete; flex plate cold to pop coupon; measure with calipers
+
+Hardware option (permanent, avoids saved offset dependency): loosen Z endstop switch mounting screw, slide switch down ~3mm, re-home, verify nozzle just kisses bed at Z=0.
+
+### Track 3 hardware arrivals (Jun 18–19)
+
+| Item | Status |
+|---|---|
+| UMLIFE AS5600 3-pack with 10×2mm magnets | On hand |
+| 608ZZ bearings 10-pack (8×22×7mm) | On hand |
+| SimpleFOC Shield v2 (IR2104 gate drivers, INA240 current sensors) | On hand |
+
+GM4108H-120T still in transit (est. Jun 30–Jul 9). All other Track 3 hardware is on hand. M8 bolts + nuts still needed from hardware store.
+
+### Open threads
+
+- Track 1: Qwiic pHAT (DEV-15945) from DigiKey expected Jun 23–25. Arrives → bridge ADDR pad on one SEN-20176 unit → connect via Qwiic → run commissioning
+- Track 3: Z offset calibration blocks coupon print; coupon print blocks flywheel print; GM4108H blocks motor mount CAD finalization
+- M8 hardware: hardware store errand, not ordered
+
+---
+
+## 2026-06-17
+
+### Hardware inventory audit — ISM330DHCX form factor corrected
+
+Receipt cross-reference (SparkFun order #000294857, May 18 2026) confirmed both ISM330DHCX units are **SparkFun Micro 6DoF IMU SEN-20176 breakout boards**, not bare ST chips. The inventory entry "ST ISM330DHCX ×2" was a mislabel carried forward from the original procurement plan. Both units on hand.
+
+Consequence for Track 1 wiring: the SEN-20176 does not expose SA0 as a through-hole pin. Address is set via a solder jumper (ADDR pad) on the back of the board:
+- Unit A: bridge ADDR pad with solder → I2C address 0x6A
+- Unit B: leave ADDR pad open (factory default) → I2C address 0x6B
+
+Both units connect to RPi i2c-1 via Qwiic cable (to Qwiic pHAT); no bare wire to SA0 needed. `what.md` Track 1 remaining steps updated accordingly.
+
+### Track 1 blocker identified and ordered
+
+SparkFun Qwiic pHAT v2.0 (DEV-15945) was missing from inventory and is required to route Qwiic connectors to the RPi I2C header cleanly. Backordered at SparkFun; sourced from DigiKey. Same DigiKey order includes SAC0307 0.6mm solder and Chip Quik no-clean flux pen for the ADDR jumper bridge operation. Est. delivery Jun 23–25.
+
+### Track 3 hardware procurement complete
+
+All Track 3 hardware ordered via Amazon:
+
+| Item | Source | Est. Delivery |
+|---|---|---|
+| iPower GM4108H-120T (hollow shaft, without slipring) | Amazon | Jun 30–Jul 9 |
+| SimpleFOC shield (IR2104 gate drivers, INA240 current sensors) | Amazon | Jun 19 |
+| UMLIFE AS5600 3-pack (12-bit I2C, with 10×2mm magnets) | Amazon | Jun 18 |
+| 608ZZ bearings 10-pack (8×22×7mm) | Amazon | Jun 18 |
+
+SimpleFOC shield verified compatible: IR2104 half-bridge drivers (3× for 3-phase), INA240 high-precision current sensors (A/B phase), Arduino Uno shield form factor, power input DC 12–35V, SimpleFOC v2.0.4 explicitly cited. IR2104 voltage jumper: leave at left position for VCC ≤ 20V operation with GM4108H.
+
+AS5600 3-pack with magnets: 1 unit allocated to Track 3 reaction wheel; 2 spare for Track 5 ADCS sensor suite. Magnet confirmed included in listing (pictured).
+
+GM4108H delivery Jun 30–Jul 9 is the long pole for Track 3. M8 bolts + nuts (flywheel tuning masses) still needed from hardware store before flywheel print.
+
+### Tomorrow — test print session plan
+
+**Objective:** validate print quality and hole fit on the new PEI flex plate before committing to the ~2 h flywheel print.
+
+**Step 1 — Install PEI flex plate (prerequisite)**
+- Clean bare aluminum bed with IPA; allow to dry fully
+- Seat adhesive magnetic base sheet, smooth out bubbles from center outward
+- Re-level bed: four-corner paper drag, then center check
+- Do not skip leveling — first layer on new surface will differ from prior calibration
+
+**Step 2 — Print test coupon**
+- File: `cad/print_test_coupon.scad` (40×20×6mm, M8 + M3 holes)
+- Slice at 0.20mm layer height, 20% infill, 3 perimeter walls, supports off
+- Let cool completely on plate before removal; flex plate off printer, bend to pop part
+
+**Step 3 — Measure with calipers**
+
+| Dimension | Nominal | Pass if within |
+|---|---|---|
+| X length | 40.0mm | ±0.3mm |
+| Y width | 20.0mm | ±0.3mm |
+| Z height | 6.0mm | ±0.3mm |
+| M8 hole diameter | 8.5mm | ±0.2mm |
+| M3 hole diameter | 3.4mm | ±0.15mm |
+
+Z height is the primary concern: prior coupon eyeballed ~4mm vs 6mm modeled (part was damaged on removal, so unreliable). A clean measurement resolves whether the gap is a slicer setting, Z steps/mm, or first-layer over-squish.
+
+**Step 4 — Diagnose Z if short**
+- Check slicer layer count × layer height = expected Z
+- If layer count is correct but Z is short: Z steps/mm may need calibration (`M92 Z<value>`, measure, iterate)
+- If top surface is open/hairy: increase top layer count in slicer (3 → 5 solid layers)
+- If first layer is visibly over-squished (elephant foot): back off Z offset 0.05mm at a time
+
+**Step 5 — Decision gate**
+- X/Y/Z and holes all within tolerance: commit `cad/` files, proceed to flywheel print planning
+- Any dimension out: iterate on slicer or calibration, reprint coupon before touching flywheel
+
+### Open threads
+
+- Track 1: Qwiic pHAT delivery (~Jun 23) unblocks commissioning
+- Track 3: GM4108H delivery (~Jul 9) is critical path; flywheel CAD bolt pattern unverified until motor arrives
+- M8 hardware still needed from hardware store
+- PEI plate leveling required before tomorrow's prints
+
+---
+
 ## 2026-06-16
 
 ### ISM330DHCX ×2 received — hardware signature commissioning stack built
