@@ -93,20 +93,19 @@ All three nodes ingest to production Beamwarden (`app.beamwarden.com`). Beamforg
 **Goal:** Single-axis reaction wheel hardware-in-the-loop demonstrator. Platform rotates; reaction wheel counter-rotates; BNO055 quaternion feedback drives attitude control. Inner velocity loop on Arduino Uno Q via SimpleFOC; outer attitude loop on RPi at ~20 Hz.
 
 **Hardware on hand:**
+- iPower GM4108H-120T BLDC gimbal motor (arrived Jun 25)
 - Arduino Uno Q (inner loop controller)
+- SimpleFOC Shield v2 (IR2104/INA240)
+- AS5600 magnetic encoder + 10×2mm magnet (3-pack; 1 allocated here)
+- 608ZZ bearings 10-pack
 - Adafruit BNO055 (outer attitude loop, quaternion output)
 - Adafruit LSM6DSOX (tumbling FSM gyro input)
-- 608ZZ bearings: to acquire
 - IdeaFormer PEO/PEI flex plate 235×235mm (on hand; install pending)
 - Creality Ender 3 (operational; E-steps corrected)
 - Digital calipers (for hole-fit verification)
 
 **Hardware to acquire:**
-- iPower GM4108H-120T BLDC gimbal motor
-- SimpleFOC Shield v2
-- AS5600 magnetic encoder + 10×2mm diametrically magnetized magnet
-- 608ZZ bearings ×2
-- M8 bolts + nuts (flywheel tuning masses)
+- M8 bolts + nuts (flywheel tuning masses) — hardware store
 
 **CAD (in progress, uncommitted):**
 - `cad/flywheel_gm4108h.scad`: parametric rim-loaded flywheel, M8 tuning pockets; rotor bolt pattern is placeholder pending motor measurement
@@ -115,8 +114,8 @@ All three nodes ingest to production Beamwarden (`app.beamwarden.com`). Beamforg
 **Steps:**
 1. Install PEI flex plate (IPA clean bed, re-level)
 2. Print test coupon; measure all three axes with calipers; resolve Z discrepancy
-3. Acquire GM4108H, SimpleFOC Shield, AS5600 + magnet, 608ZZ bearings, M8 hardware
-4. Measure GM4108H rotor bolt circle; update `mount_*`/`boss_*` in `flywheel_gm4108h.scad`
+3. Measure GM4108H rotor bolt circle; update `mount_*`/`boss_*` in `flywheel_gm4108h.scad`
+4. Acquire M8 bolts + nuts (hardware store)
 5. Print flywheel; print motor holder (from scratch, GM4108H round face)
 6. Wire AS5600 + SimpleFOC Shield + GM4108H to Uno Q; run `find_pole_pairs`; confirm motor spins both directions
 7. Wire BNO055 and LSM6DSOX to Uno Q and RPi respectively; confirm I2C addresses no conflict
@@ -199,7 +198,7 @@ Items needed before blocked tracks can proceed, in priority order:
 
 | Item | Blocks | Priority |
 |---|---|---|
-| iPower GM4108H-120T BLDC motor | Track 3 | Ordered — Amazon, est. Jun 30–Jul 9 |
+| iPower GM4108H-120T BLDC motor | Track 3 | On hand (arrived Jun 25) |
 | SimpleFOC Shield v2 (IR2104/INA240) | Track 3 | On hand |
 | AS5600 encoder + 10×2mm magnet (3-pack) | Track 3 | On hand |
 | 608ZZ bearings ×2 | Track 3 | On hand |
