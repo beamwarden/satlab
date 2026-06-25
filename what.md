@@ -107,6 +107,8 @@ All three nodes ingest to production Beamwarden (`app.beamwarden.com`). Beamforg
 **Hardware to acquire:**
 - M8 bolts + nuts (flywheel tuning masses) — hardware store
 
+**Blocker:** 3D printer must be fully calibrated before committing to flywheel print. Required: install PEI flex plate, calibrate Z offset, print and measure test coupon, confirm all dimensions within tolerance.
+
 **CAD (in progress, uncommitted):**
 - `cad/flywheel_gm4108h.scad`: parametric rim-loaded flywheel, M8 tuning pockets; rotor bolt pattern is placeholder pending motor measurement
 - `cad/print_test_coupon.scad`: M8 + M3 hole-fit validation coupon; Z height suspect (~4mm vs 6mm modeled), needs re-measurement on new plate
@@ -196,13 +198,14 @@ All three nodes ingest to production Beamwarden (`app.beamwarden.com`). Beamforg
 
 Items needed before blocked tracks can proceed, in priority order:
 
-| Item | Blocks | Priority |
+| Item | Blocks | Status |
 |---|---|---|
+| 3D printer calibration (Z offset + coupon print + measurement) | Track 3 | Blocker — must complete before flywheel print |
+| M8 hardware (bolts + nuts) | Track 3 | To acquire — hardware store |
 | iPower GM4108H-120T BLDC motor | Track 3 | On hand (arrived Jun 25) |
 | SimpleFOC Shield v2 (IR2104/INA240) | Track 3 | On hand |
 | AS5600 encoder + 10×2mm magnet (3-pack) | Track 3 | On hand |
-| 608ZZ bearings ×2 | Track 3 | On hand |
-| M8 hardware (bolts + nuts) | Track 3 | To acquire — hardware store |
+| 608ZZ bearings 10-pack | Track 3 | On hand |
 
 ---
 
