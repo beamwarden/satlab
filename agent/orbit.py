@@ -14,8 +14,11 @@ logger = logging.getLogger(__name__)
 _SPACETRACK_BASE = "https://www.space-track.org"
 _LOGIN_URL       = f"{_SPACETRACK_BASE}/ajaxauth/login"
 
-# TLE refresh floor — Space-Track rate-limits to one poll per 30 minutes.
-_TLE_REFRESH_INTERVAL_S = 1800
+# TLE refresh floor — Space-Track's gp class allows at most one query per hour
+# (not 30 minutes; this constant was previously set to 1800 based on a mistaken
+# reading of the policy, which contributed to a real account suspension — see
+# ne-body's docs/ENGINEERING_LOG.md 2026-07-02).
+_TLE_REFRESH_INTERVAL_S = 3600
 
 # Default tracked object: ISS (ZARYA)
 _DEFAULT_NORAD_ID = "25544"
@@ -102,7 +105,7 @@ class OrbitalPropagator:
     Wraps sgp4 to propagate a tracked object to the current time.
 
     Fetches TLEs from Space-Track.org and caches them for
-    _TLE_REFRESH_INTERVAL_S (30 min) to respect rate limits.
+    _TLE_REFRESH_INTERVAL_S (1 hour) to respect rate limits.
     Falls back to a bundled TLE when the network is unavailable.
     """
 
