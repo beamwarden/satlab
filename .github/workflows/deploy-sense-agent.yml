@@ -1,0 +1,56 @@
+name: Deploy — beamrider-0004 (sense-agent)
+
+# Push-only trigger — deliberately NOT pull_request/pull_request_target.
+# push events on a protected branch only fire for actors with write access,
+# so this cannot be triggered by an external fork PR. See CLAUDE.md "CI/CD"
+# section for the full security rationale (self-hosted runner on a public repo).
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'sense-agent/**'
+      - 'deploy/sense-agent.service'
+      - 'deploy/deploy-sense.sh'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-beamrider-0004
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy sense-agent to beamrider-0004
+    runs-on: [self-hosted, beamrider-0004]
+    environment: beamrider-0004
+    timeout-minutes: 10
+
+    steps:
+      - name: Show what's deploying
+        run: |
+          echo "commit: ${{ github.sha }}"
+          echo "ref:    ${{ github.ref }}"
+
+      # No actions/checkout — see deploy-agent.yml for why.
+      - name: git pull --ff-only
+        run: |
+          cd /home/jeb/satlab
+          git fetch origin
+          git pull --ff-only origin main
+
+      - name: Install Python dependencies
+        run: pip install -q --break-system-packages -r /home/jeb/satlab/sense-agent/requirements.txt
+
+      - name: Restart sense-agent
+        run: sudo /usr/bin/systemctl restart sense-agent
+
+      - name: Verify service is active
+        run: |
+          sleep 2
+          sudo /usr/bin/systemctl is-active --quiet sense-agent
+
+      - name: Recent service logs (diagnostics)
+        if: always()
+        run: journalctl -u sense-agent -n 50 --no-pager

@@ -1,0 +1,15 @@
+# Installed by deploy/install-runner.sh at /etc/sudoers.d/satlab-ci-deploy.
+# Do not hand-edit on the Pi — edit this template and re-run the installer.
+#
+# Scoped deliberately narrow: the satlab-ci runner user can restart and
+# check exactly one systemd unit, nothing else. It is never added to the
+# sudo group, dialout, or given any other elevated access.
+satlab-ci ALL=(root) NOPASSWD: /usr/bin/systemctl restart SERVICE_NAME
+satlab-ci ALL=(root) NOPASSWD: /usr/bin/systemctl is-active --quiet SERVICE_NAME
+
+# Uncomment only if `pip install --break-system-packages` fails for satlab-ci
+# despite satlab-deploy group membership (dist-packages is often root-owned
+# regardless of group) — verify this is actually needed before adding it,
+# do not enable pre-emptively:
+# satlab-ci ALL=(root) NOPASSWD: /usr/bin/pip install -q --break-system-packages -r /home/jeb/satlab/agent/requirements.txt
+# satlab-ci ALL=(root) NOPASSWD: /usr/bin/pip install -q --break-system-packages -r /home/jeb/satlab/sense-agent/requirements.txt

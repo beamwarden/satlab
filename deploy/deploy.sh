@@ -1,6 +1,14 @@
 #!/usr/bin/env bash
 # deploy/deploy.sh — deploy the satlab agent to beamrider-0003
 #
+# NOTE: routine deploys now happen automatically via GitHub Actions on push
+# to `main` (see .github/workflows/deploy-agent.yml and deploy/install-runner.sh
+# for the one-time self-hosted-runner bootstrap). This script remains the
+# documented fallback for: (a) the very first deploy on a Pi, before a runner
+# exists there — bootstrapping is chicken-and-egg; (b) any deploy attempted
+# while the runner is offline or mid-registration; (c) LAN-local ad hoc
+# deploys where waiting on CI queueing is unnecessary friction.
+#
 # Run from your development machine:
 #
 #   ./deploy/deploy.sh [--host <hostname>] [--user <user>] [--dry-run]

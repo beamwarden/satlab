@@ -1,0 +1,60 @@
+name: Deploy — beamrider-0003 (satlab-agent)
+
+# Push-only trigger — deliberately NOT pull_request/pull_request_target.
+# push events on a protected branch only fire for actors with write access,
+# so this cannot be triggered by an external fork PR. See CLAUDE.md "CI/CD"
+# section for the full security rationale (self-hosted runner on a public repo).
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'agent/**'
+      - 'deploy/satlab-agent.service'
+      - 'deploy/deploy.sh'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-beamrider-0003
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy satlab-agent to beamrider-0003
+    runs-on: [self-hosted, beamrider-0003]
+    environment: beamrider-0003
+    timeout-minutes: 10
+
+    steps:
+      - name: Show what's deploying
+        run: |
+          echo "commit: ${{ github.sha }}"
+          echo "ref:    ${{ github.ref }}"
+
+      # No actions/checkout — this runner's registered work dir is not the
+      # production checkout. Update /home/jeb/satlab in place, mirroring
+      # deploy/deploy.sh exactly. (Pointing the runner's own workdir at the
+      # live checkout would risk actions/checkout's git-clean semantics
+      # wiping the untracked, manually-populated .env file.)
+      - name: git pull --ff-only
+        run: |
+          cd /home/jeb/satlab
+          git fetch origin
+          git pull --ff-only origin main
+
+      - name: Install Python dependencies
+        run: pip install -q --break-system-packages -r /home/jeb/satlab/agent/requirements.txt
+
+      - name: Restart satlab-agent
+        run: sudo /usr/bin/systemctl restart satlab-agent
+
+      - name: Verify service is active
+        run: |
+          sleep 2
+          sudo /usr/bin/systemctl is-active --quiet satlab-agent
+
+      - name: Recent service logs (diagnostics)
+        if: always()
+        run: journalctl -u satlab-agent -n 50 --no-pager
