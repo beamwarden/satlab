@@ -106,6 +106,7 @@ sed "s/SERVICE_NAME/${SERVICE_NAME}/g" "$TMPL" | ssh -T "${REMOTE_USER}@${HOST}"
     cat > /tmp/satlab-ci.sudoers
     sudo visudo -cf /tmp/satlab-ci.sudoers
     sudo mv /tmp/satlab-ci.sudoers /etc/sudoers.d/satlab-ci-deploy
+    sudo chown root:root /etc/sudoers.d/satlab-ci-deploy
     sudo chmod 440 /etc/sudoers.d/satlab-ci-deploy
 '
 log "sudoers drop-in installed and syntax-validated"
