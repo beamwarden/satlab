@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import hmac as _hmac
 import os
 import uuid
 from dataclasses import dataclass, field
@@ -7,6 +9,19 @@ from datetime import datetime
 from enum import Enum
 
 from thresholds import ViolationLevel, ThresholdViolation
+
+
+def _load_hw_key() -> bytes | None:
+    raw = os.environ.get("SATLAB_HW_KEY", "").strip()
+    if not raw:
+        return None
+    try:
+        return bytes.fromhex(raw)
+    except ValueError:
+        return None
+
+
+_HW_KEY: bytes | None = _load_hw_key()
 
 
 class NodeState(str, Enum):
@@ -142,6 +157,10 @@ class HealthVector:
     def to_payload(self, timestamp: datetime) -> dict:
         if timestamp.tzinfo is None:
             raise ValueError("timestamp must be UTC-aware; got a naive datetime")
+        hmac_tag = self.hmac_tag
+        if _HW_KEY is not None:
+            msg      = f"{self.node_id}:{self.sequence}".encode()
+            hmac_tag = _hmac.new(_HW_KEY, msg, hashlib.sha256).hexdigest()[:32]
         return {
             "node_id":               self.node_id,
             "timestamp":             timestamp.isoformat(),
@@ -152,5 +171,5 @@ class HealthVector:
             "subsystems":            {k: v.to_dict() for k, v in self.subsystems.items()},
             "ae_summaries":          {k: round(v.ae_score, 4) for k, v in self.subsystems.items()},
             "nis_summaries":         self.nis_summaries,
-            "hmac_tag":              self.hmac_tag,
+            "hmac_tag":              hmac_tag,
         }
