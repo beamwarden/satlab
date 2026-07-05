@@ -19,7 +19,7 @@ Arduino reads sensors → sends JSON telemetry over USB serial → RPi agent par
 Replace USB serial transport with LoRa radio (Wio Tracker SX1262). Same packet schema; swap the transport layer.
 
 **Iteration 3 — Remote management**
-Beamwarden deploys and manages the Beamrider agent on the RPi via SSH/Ansible, mirroring ground station operations.
+Beamwarden deploys and manages the Beamrider agent on the RPi via SSH/Ansible, mirroring ground station operations. (Distinct from the GitHub Actions self-hosted-runner deploy pipeline described in "CI/CD" below — that's an earlier, simpler mechanism solving the same "deploy without LAN access" problem via push-to-deploy, not Beamwarden-driven.)
 
 ---
 
@@ -43,6 +43,7 @@ Beamwarden deploys and manages the Beamrider agent on the RPi via SSH/Ansible, m
 | Meshnology Wio Tracker L1 (SX1262 LoRa + nRF52840, 3000 mAh) | 2 | Iteration 2 radio layer | On hand |
 | NUCLEO-144 STM32H753ZI | 1 | Cortex-M7 480MHz eval board — candidate ADCS inner loop controller | On hand |
 | Breadboards, connectors, cables, soldering station | — | Integration | On hand |
+| ST ISM330DHCX 6DoF IMU | 2 | ADCS hardware signature pair: 0x6A (SA0 low) + 0x6B (SA0 high) on RPi I2C; commissioning + HMAC attestation | Operational |
 | Adafruit LSM6DSOX 6DoF IMU (STEMMA QT) | 1 | ADCS primary: accel + gyro, Qwiic/Stemma QT | On hand |
 | Adafruit LSM9DS1 9DoF Breakout | 1 | ADCS magnetometer + secondary gyro/accel + temp | On hand |
 | Adafruit BNO055 9DoF Absolute Orientation IMU | 1 | ADCS absolute orientation fusion output (quaternions) | On hand |
@@ -57,7 +58,7 @@ Beamwarden deploys and manages the Beamrider agent on the RPi via SSH/Ansible, m
 
 | Spacecraft subsystem | Sensor | Notes |
 |---|---|---|
-| ADCS | LSM6DSOX (accel + gyro, STEMMA QT) + LSM9DS1 (magnetometer) + BNO055 (absolute orientation fusion) | LSM6DSOX is primary; BNO055 outputs quaternions directly; LSM9DS1 magnetometer enables magnetic attitude determination |
+| ADCS | LSM6DSOX (accel + gyro, STEMMA QT) + LSM9DS1 (magnetometer) + BNO055 (absolute orientation fusion) + ISM330DHCX ×2 (hardware signature commissioning pair) | LSM6DSOX is primary for ongoing telemetry; ISM330DHCX pair (0x6A / 0x6B on RPi I2C) used for noise fingerprinting and HMAC attestation |
 | EPS | Light sensor / LDR (solar panel / illumination analog) | |
 | TCS | Temp/humidity sensor + Arduino Modulino Thermo + Sense HAT (HTS221 humidity + LPS25H pressure/temp) | Sense HAT adds second independent temperature measurement on the RPi |
 | Structural | Air pressure sensor + sound/microphone sensor | |
@@ -81,6 +82,14 @@ satlab/
 │   ├── beamwarden.py           # Beamwarden ingest client
 │   ├── orbit.py                # SGP4 orbit propagation (ne-body heritage)
 │   └── requirements.txt
+├── commissioning/              # ISM330DHCX hardware signature experiment
+│   ├── ism330dhcx.py           # Direct I2C driver (smbus2, no library dependency)
+│   ├── capture.py              # High-rate dual-unit data collection
+│   ├── allan.py                # Overlapping Allan deviation computation
+│   ├── fingerprint.py          # ADEV fingerprint extraction and HMAC key derivation
+│   ├── commission.py           # Orchestrate: capture → fingerprint → save
+│   ├── verify.py               # Re-measure and compare to baseline
+│   └── requirements.txt        # smbus2, numpy
 └── docs/
     ├── hardware.md             # Wiring and pin mapping
     └── subsystem-map.md        # Sensor → subsystem mapping detail
@@ -113,9 +122,48 @@ BEAMWARDEN_TOKEN      Beamrider bearer token from Beamwarden
 SATLAB_NORAD_ID       NORAD ID to propagate (default: 25544 — ISS)
 SPACETRACK_USER       Space-Track.org account email
 SPACETRACK_PASS       Space-Track.org account password
+SATLAB_HW_KEY         64-char hex HMAC key derived during ISM330DHCX commissioning;
+                      printed by commission.py. If set, each HealthVector publish
+                      includes an HMAC-SHA256 tag binding node_id + sequence to
+                      the physical hardware signature.
 ```
 
 TLE source is Space-Track.org (same credentials as ne-body). TLEs are cached for 30 minutes to respect Space-Track rate limits. The agent falls back to a bundled ISS TLE if credentials are absent or the network is unavailable.
+
+---
+
+## Hardware signature commissioning (ISM330DHCX)
+
+Both ISM330DHCX units connect to the RPi I2C bus (i2c-1 on RPi 3/4, check with `sudo i2cdetect -y 1`):
+- Unit 0: SA0 pin to GND → address 0x6A
+- Unit 1: SA0 pin to 3.3V → address 0x6B
+
+Run once after wiring. Takes ~120 s. Run from beamrider-0003 with the agent stopped.
+
+```bash
+# 1. Install commissioning deps
+pip install -r commissioning/requirements.txt --break-system-packages
+
+# 2. Verify both units are visible on the bus
+sudo i2cdetect -y 1   # expect 0x6A and 0x6B to appear
+
+# 3. Run commissioning (2 min capture + fingerprint computation)
+cd commissioning && python commission.py --bus 1 --duration 120 --out ~/commissioning_output
+
+# 4. Register fingerprint with Beamwarden (on beamwarden host)
+python manage.py set_hw_signature beamrider-0003 ~/commissioning_output/fingerprint.json
+
+# 5. Add hw key to agent .env (printed by commission.py)
+echo "SATLAB_HW_KEY=<printed-hex>" >> ~/satlab/.env
+
+# 6. Periodic verification (optional; 30 s)
+python commissioning/verify.py --baseline ~/commissioning_output/fingerprint.json
+```
+
+The agent reads `SATLAB_HW_KEY` at startup. If set, each HealthVector publish includes
+`hmac_tag = HMAC-SHA256(hw_key, "{node_id}:{sequence}")[:32]`.
+
+---
 
 ## RPi setup (Beamrider-0003)
 
@@ -144,6 +192,8 @@ cd agent && python main.py
 ```
 
 Register beamrider-0003 in Beamwarden (admin UI or API) before running the agent to obtain the bearer token.
+
+**Continuous deployment:** see "CI/CD" below — after the one-time bootstrap, pushes to `main` touching `agent/**` deploy automatically.
 
 ---
 
@@ -190,6 +240,22 @@ Subsequent deploys:
 ```
 
 **LED matrix health indicator:** green = all sensors ingesting OK, amber = partial failure, red = all sensors failed or Beamwarden unreachable.
+
+**Continuous deployment:** see "CI/CD" below — after the one-time bootstrap, pushes to `main` touching `sense-agent/**` deploy automatically.
+
+---
+
+## CI/CD (GitHub Actions self-hosted runner)
+
+Routine deploys to both Pis happen automatically via GitHub Actions on push to `main` — no LAN/SSH access needed once set up. `.github/workflows/deploy-agent.yml` and `.github/workflows/deploy-sense-agent.yml` each run on a self-hosted runner living on the target Pi itself (labels `beamrider-0003` / `beamrider-0004`); the runner dials **out** to GitHub, so this works regardless of where the developer is physically. Each workflow reproduces the existing manual deploy scripts' logic (`git pull --ff-only`, `pip install --break-system-packages`, `systemctl restart`, verify) as plain shell steps against the live `/home/jeb/satlab` checkout — deliberately not `actions/checkout`, to avoid its `git clean` semantics wiping the untracked, manually-populated `.env`.
+
+**Security note — this repo is public.** Self-hosted runners on public repos are a known risk: a `pull_request`/`pull_request_target`-triggered workflow from a forked PR would get code execution on the runner. Both workflows here trigger on `push` only, never `pull_request`/`pull_request_target` — push events on `main` only fire for actors who already have write access, so this cannot be triggered by an external contributor. Defense in depth beyond that: the runner on each Pi runs as a dedicated low-privilege `satlab-ci` system user (not `jeb`, which has sudo + `dialout`), with a sudoers grant scoped to exactly `systemctl restart <service>` / `systemctl is-active <service>` — see `deploy/satlab-ci.sudoers.tmpl`. GitHub Environments (`beamrider-0003`, `beamrider-0004`) with required reviewers add a manual approval click per deploy.
+
+**Why `main`, not `develop`:** `main` was previously unused as an integration branch (no merge history). It was adopted deliberately as the deploy gate so a bad push requires a conscious develop→main promotion before it reaches live hardware with a serial-attached Arduino and rate-limited Space-Track credentials, rather than firing on every WIP commit.
+
+**One-time bootstrap** (requires the Pi to be reachable — SSH/LAN or equivalent; cannot be done remotely otherwise): `deploy/install-runner.sh --host <pi>.local --label <beamrider-0003|beamrider-0004> --token <REG_TOKEN>`, where `<REG_TOKEN>` is generated fresh (short-lived, ~1hr) via `gh api -X POST repos/beamwarden/satlab/actions/runners/registration-token --jq .token`. See the script's header comment for the full step list.
+
+`deploy/deploy.sh` and `deploy/deploy-sense.sh` remain as the documented manual fallback — see their header comments for when to use them instead of waiting on CI.
 
 ---
 
