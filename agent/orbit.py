@@ -11,19 +11,15 @@ from sgp4.api import Satrec, jday
 
 logger = logging.getLogger(__name__)
 
-_SPACETRACK_BASE = "https://www.space-track.org"
-_LOGIN_URL       = f"{_SPACETRACK_BASE}/ajaxauth/login"
-
-# TLE refresh floor — Space-Track's gp class allows at most one query per hour
-# (not 30 minutes; this constant was previously set to 1800 based on a mistaken
-# reading of the policy, which contributed to a real account suspension — see
-# ne-body's docs/ENGINEERING_LOG.md 2026-07-02).
+# TLE refresh interval. ne-body polls Space-Track at most once per 3600 s, so
+# requesting the ne-body cache more often than that returns the same cached
+# data. Align satlab's cadence to ne-body's ingest cycle.
 _TLE_REFRESH_INTERVAL_S = 3600
 
 # Default tracked object: ISS (ZARYA)
 _DEFAULT_NORAD_ID = "25544"
 
-# Epoch: 2024-04-24. Used only when Space-Track is unreachable and no prior fetch
+# Epoch: 2024-04-24. Used only when ne-body is unreachable and no prior fetch
 # has been cached. Propagation accuracy degrades significantly beyond a few weeks
 # of epoch age. To improve resilience, persist the last successfully fetched TLE
 # to disk and reload it on startup before falling back to this constant.
@@ -58,44 +54,60 @@ class OrbitalState:
         }
 
 
-def _fetch_tle_spacetrack(norad_id: str) -> tuple[str, str] | None:
+def _fetch_tle(norad_id: str) -> tuple[str, str] | None:
     """
-    Fetch the current TLE for norad_id from Space-Track.org.
+    Fetch the current TLE for norad_id from the ne-body cache endpoint.
 
-    Reads SPACETRACK_USER and SPACETRACK_PASS from the environment.
-    Returns (line1, line2) on success, None on any failure.
+    Reads NEBODY_URL from the environment (e.g. http://keep-0001:8000).
+    If unset, logs a warning and returns None immediately without making
+    any HTTP call — the caller (_load) will use _FALLBACK_TLE.
+
+    If NEBODY_API_KEY is set in the environment, it is forwarded to
+    ne-body as a ?key=... query parameter. This satisfies ne-body's
+    _ApiKeyMiddleware when auth is enabled on the ne-body server. The
+    parameter is harmless when ne-body has no API key configured.
+
+    Returns (line1, line2) on success, None on any failure (NEBODY_URL
+    not set, connection error, timeout, non-200 status, malformed JSON,
+    or missing fields). Never raises — the caller treats None as
+    "use _FALLBACK_TLE".
     """
-    user = os.environ.get("SPACETRACK_USER")
-    password = os.environ.get("SPACETRACK_PASS")
-    if not user or not password:
-        logger.warning("SPACETRACK_USER / SPACETRACK_PASS not set — using fallback TLE")
+    nebody_url = os.environ.get("NEBODY_URL")
+    if not nebody_url:
+        logger.warning("NEBODY_URL not set — skipping TLE fetch, using fallback TLE")
         return None
 
-    query_url = (
-        f"{_SPACETRACK_BASE}/basicspacedata/query/class/gp"
-        f"/NORAD_CAT_ID/{norad_id}/orderby/TLE_LINE1 ASC/limit/1/format/tle"
-    )
+    nebody_api_key = os.environ.get("NEBODY_API_KEY")
+    url = f"{nebody_url}/tle/{norad_id}/latest"
+    params: dict[str, str] = {"key": nebody_api_key} if nebody_api_key else {}
 
     try:
-        with httpx.Client(timeout=30.0, follow_redirects=True) as client:
-            resp = client.post(
-                _LOGIN_URL,
-                data={"identity": user, "password": password},
+        response = httpx.get(url, params=params, timeout=10.0)
+        if response.status_code != 200:
+            logger.warning(
+                "ne-body returned HTTP %s for NORAD %s — using fallback TLE",
+                response.status_code,
+                norad_id,
             )
-            resp.raise_for_status()
+            return None
 
-            resp = client.get(query_url)
-            resp.raise_for_status()
+        data = response.json()
+        line1: str = data["tle_line1"]
+        line2: str = data["tle_line2"]
+        return line1, line2
 
-        lines = [l.strip() for l in resp.text.strip().splitlines() if l.strip()]
-        if len(lines) >= 2:
-            return lines[0], lines[1]
-
-        logger.warning("unexpected TLE response for NORAD %s: %r", norad_id, resp.text[:120])
     except httpx.RequestError as exc:
-        logger.error("Space-Track request failed: %s", exc)
-    except httpx.HTTPStatusError as exc:
-        logger.error("Space-Track HTTP error: %s", exc)
+        logger.warning(
+            "ne-body unreachable for NORAD %s: %s — using fallback TLE",
+            norad_id,
+            exc,
+        )
+    except (KeyError, ValueError) as exc:
+        logger.warning(
+            "malformed ne-body response for NORAD %s: %s — using fallback TLE",
+            norad_id,
+            exc,
+        )
 
     return None
 
@@ -104,9 +116,10 @@ class OrbitalPropagator:
     """
     Wraps sgp4 to propagate a tracked object to the current time.
 
-    Fetches TLEs from Space-Track.org and caches them for
-    _TLE_REFRESH_INTERVAL_S (1 hour) to respect rate limits.
-    Falls back to a bundled TLE when the network is unavailable.
+    Fetches TLEs from the ne-body cache endpoint (NEBODY_URL env var) and
+    caches them for _TLE_REFRESH_INTERVAL_S (3600 s) to match ne-body's
+    own Space-Track polling cadence. Falls back to a bundled TLE when
+    ne-body is unreachable or NEBODY_URL is not configured.
     """
 
     def __init__(self, norad_id: str = _DEFAULT_NORAD_ID) -> None:
@@ -115,7 +128,7 @@ class OrbitalPropagator:
         self._sat         = self._load()
 
     def _load(self) -> Satrec:
-        tle = _fetch_tle_spacetrack(self._norad_id)
+        tle = _fetch_tle(self._norad_id)
         if tle is None:
             logger.warning("using fallback TLE for NORAD %s", self._norad_id)
             tle = _FALLBACK_TLE

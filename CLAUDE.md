@@ -120,15 +120,15 @@ SATLAB_SERIAL_PORT    Serial device (e.g. /dev/ttyUSB0 or /dev/ttyACM0)
 BEAMWARDEN_URL        Base URL of Beamwarden instance
 BEAMWARDEN_TOKEN      Beamrider bearer token from Beamwarden
 SATLAB_NORAD_ID       NORAD ID to propagate (default: 25544 — ISS)
-SPACETRACK_USER       Space-Track.org account email
-SPACETRACK_PASS       Space-Track.org account password
+NEBODY_URL            Base URL of the ne-body API (e.g. http://keep-0001:8000)
+NEBODY_API_KEY        (optional) API key for ne-body's auth middleware
 SATLAB_HW_KEY         64-char hex HMAC key derived during ISM330DHCX commissioning;
                       printed by commission.py. If set, each HealthVector publish
                       includes an HMAC-SHA256 tag binding node_id + sequence to
                       the physical hardware signature.
 ```
 
-TLE source is Space-Track.org (same credentials as ne-body). TLEs are cached for 30 minutes to respect Space-Track rate limits. The agent falls back to a bundled ISS TLE if credentials are absent or the network is unavailable.
+TLE source is the ne-body cache endpoint (`GET {NEBODY_URL}/tle/{norad_id}/latest`). ne-body polls Space-Track hourly; satlab reads from ne-body's cache every 3600 s. The agent falls back to a bundled ISS TLE if `NEBODY_URL` is unset or ne-body is unreachable. satlab no longer requires Space-Track credentials.
 
 ---
 
@@ -184,8 +184,8 @@ export SATLAB_SERIAL_PORT=/dev/ttyACM0   # adjust if needed
 export BEAMWARDEN_URL=http://<beamwarden-host>:8000
 export BEAMWARDEN_TOKEN=<token-from-beamwarden>
 export SATLAB_NORAD_ID=25544
-export SPACETRACK_USER=<email>
-export SPACETRACK_PASS=<password>
+export NEBODY_URL=http://keep-0001:8000          # or http://192.168.1.215:8000 if Tailscale is down
+export NEBODY_API_KEY=<key-if-nebody-auth-enabled>  # omit if ne-body runs without auth
 
 # 5. Run the agent
 cd agent && python main.py
@@ -289,4 +289,4 @@ arduino-cli lib install "Adafruit AHTX0"
 ## Related systems
 
 - **Beamwarden** — `http://localhost:8000` (local) or KEEP-0001. satlab registers as a Beamrider node.
-- **ne-body** — SGP4 propagation reused for orbital position simulation; shares Space-Track credentials.
+- **ne-body** — SGP4 propagation and TLE cache endpoint. satlab pulls TLEs from ne-body's `/tle/{norad_id}/latest` endpoint rather than polling Space-Track directly.
