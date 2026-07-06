@@ -1,11 +1,14 @@
 # satlab self-hosted runner — bootstrap TODO
 
-**Status as of 2026-07-06:** `satlab-agent` on beamrider-0003 is stopped and
-disabled (`systemctl stop` + `disable`) — it was still querying Space-Track
+**Status as of 2026-07-06 (firm decision):** `satlab-agent` on beamrider-0003
+is stopped and disabled. It was toggled on/off a few times today for capture
+sanity-checks and to answer a live Space-Track question, but the standing
+decision is: **do not turn it back on until `feat/orbit-nebody-api` is
+merged and deployed** (Priority 0 below). It was still querying Space-Track
 directly (a second IP on the account) even after its poll interval was fixed,
 which is exactly the "multiple servers/IPs" pattern Space-Track flagged
-separately from per-source frequency. Do not re-enable it until the migration
-below is done. See memory `project-spacetrack-suspension-2026-07`.
+separately from per-source frequency. See memory
+`project-spacetrack-suspension-2026-07`.
 
 `feat/orbit-nebody-api` has been rebased onto current `develop` and pushed
 (`38b8a3d`, force-pushed 2026-07-06) — conflicts in `agent/orbit.py`/`CLAUDE.md`
