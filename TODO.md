@@ -1,10 +1,32 @@
 # satlab self-hosted runner — bootstrap TODO
 
-Everything here requires physical/LAN access to the Pis, which isn't available
-while traveling. Pick this up once you're back home (or once Tailscale/VPN
-access to the Pis exists).
+**Status as of 2026-07-05: `satlab-agent` on beamrider-0003 is stopped and
+disabled** (`systemctl stop` + `disable`) — it was still querying Space-Track
+directly (a second IP on the account) even after its poll interval was fixed,
+which is exactly the "multiple servers/IPs" pattern Space-Track flagged
+separately from per-source frequency. Do not re-enable it until the migration
+below is done. See `~/.claude/projects/.../memory/project_spacetrack_suspension_2026-07.md`.
 
-## Prerequisites
+SSH access to beamrider-0003.local now works directly from the main dev
+machine (confirmed 2026-07-05) — the "requires physical/LAN access, blocked
+while traveling" framing below is stale as of that date; re-verify current
+network access before assuming this is still blocked.
+
+## Priority 0: migrate off direct Space-Track access
+
+ne-body now exposes `GET /tle/{norad_id}/latest` and `GET /tle/latest`
+(commit `e3ed793`, deployed to `keep-0001`) specifically so satlab doesn't
+need its own Space-Track poller. `feat/orbit-nebody-api` already contains the
+`orbit.py` side of this switch, but it's branched off a stale base commit
+(predates the CI/runner work merged since) — merging it as-is would delete
+`.github/workflows/`, `deploy/install-runner.sh`, etc.
+
+- [ ] Rebase `feat/orbit-nebody-api` onto current `develop`
+- [ ] Merge to `develop`, then promote to `main`
+- [ ] Re-enable `satlab-agent` on beamrider-0003, confirm via journalctl that
+      it's hitting ne-body's endpoint and never `www.space-track.org`
+
+## Prerequisites (self-hosted runner bootstrap — secondary to the above)
 
 - [ ] LAN/SSH access to `beamrider-0003.local` and `beamrider-0004.local`
 - [ ] `gh auth status` shows admin rights on `beamwarden/satlab` (needed to mint runner registration tokens)
@@ -30,7 +52,7 @@ running the script, not in advance.
 ## After both runners are online
 
 - [ ] `gh api repos/beamwarden/satlab/actions/runners --jq '.runners[].name'` — confirm both `beamrider-0003` and `beamrider-0004` show up
-- [ ] Merge PR #2 (rate-limit fix: 30min → 1hr) and PR #3 (this deploy pipeline) — needs an actual `develop` → `main` promotion, since both workflows trigger only on push to `main`
+- [x] PR #2 (rate-limit fix: 30min → 1hr) and PR #3 (this deploy pipeline) merged to `develop` — still need an actual `develop` → `main` promotion, since both workflows trigger only on push to `main` (see Priority 0 above, which now also needs to land before this promotion)
 - [ ] Watch the Actions tab for `Deploy — beamrider-0003 (satlab-agent)` and `Deploy — beamrider-0004 (sense-agent)` to fire; approve the environment-reviewer prompt on each
 - [ ] Check the workflow's own journalctl diagnostics step (or `ssh ... "systemctl status satlab-agent"`) for a clean restart: serial port opened, TLE loaded, first Beamwarden ingest accepted
 - [ ] Confirm `satlab-agent` is actually running the fixed 3600s interval — journalctl "refreshing TLE" log lines should now be ~1hr apart, not ~30min
