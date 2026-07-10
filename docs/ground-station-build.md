@@ -8,7 +8,9 @@ This document did not exist before 2026-07-10; it's a synthesized plan, not a re
 
 ## Goal
 
-Weekend build (2026-07-11/12), scoped to **box-to-first-signal-capture**: get the dongle, antenna, and a dedicated RPi 4 working as an independent RF receiver, with a real captured/decoded signal as proof of a working chain. This is a standalone RF capability, not yet wired into the Beamwarden ingest pipeline the way beamrider-0003/0004 are — see "Future integration" below for how it would eventually connect.
+Weekend build (2026-07-11/12), scoped to **box-to-first-signal-capture**: get the dongle, antenna, and a dedicated RPi 4 (hostname `groundstation-01`) working as an independent RF receiver, with a real captured/decoded signal as proof of a working chain. This is a standalone RF capability, not yet wired into the Beamwarden ingest pipeline the way beamrider-0003/0004 are — see "Future integration" below for how it would eventually connect.
+
+Named `groundstation-01` rather than a `beamrider-000X` number deliberately — it isn't registered in Beamwarden yet, and the fleet already has precedent for purpose-named (not fleet-numbered) hosts (`ai-pi`, `spare-01`, `keep-0001`). If it's later registered as a Beamrider node, rename to `beamrider-0005` at that point rather than starting with a name that's wrong from day one.
 
 No CubeSatSim transmitter exists on the Arduino side (the 433 MHz TX half of the original scoping doc was never built), so receiving a simulated broadcast from satlab's own hardware isn't an option yet. The realistic weekend target is receiving a **real** signal — see Phase 2.
 
@@ -29,6 +31,9 @@ No CubeSatSim transmitter exists on the Arduino side (the 433 MHz TX half of the
 
 ```bash
 # 1. Flash Raspberry Pi OS Lite (64-bit) to the dedicated RPi 4 via Raspberry Pi Imager
+#    (Imager's advanced options can set hostname/user/SSH key at flash time —
+#    set hostname to groundstation-01 there, or via raspi-config after first boot:
+#    sudo raspi-config nonint do_hostname groundstation-01 && sudo reboot)
 
 # 2. Update and install RTL-SDR tools
 sudo apt update && sudo apt install -y rtl-sdr gqrx-sdr rtl-433
