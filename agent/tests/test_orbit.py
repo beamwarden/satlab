@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import os
 from datetime import datetime, timezone
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
+import httpx
 import pytest
 
 from orbit import OrbitalState, OrbitalPropagator, _FALLBACK_TLE, _DEFAULT_NORAD_ID
@@ -76,13 +77,13 @@ class TestOrbitalPropagatorFallback:
             assert state.norad_id == _DEFAULT_NORAD_ID
 
     def test_fetch_failure_falls_back(self):
-        with patch("orbit._fetch_tle_spacetrack", return_value=None):
+        with patch("orbit._fetch_tle", return_value=None):
             prop = OrbitalPropagator(_DEFAULT_NORAD_ID)
             state = prop.propagate(datetime(2026, 5, 18, 12, 0, 0, tzinfo=timezone.utc))
             assert isinstance(state, OrbitalState)
 
     def test_to_payload_after_fallback(self):
-        with patch("orbit._fetch_tle_spacetrack", return_value=None):
+        with patch("orbit._fetch_tle", return_value=None):
             prop = OrbitalPropagator(_DEFAULT_NORAD_ID)
             state = prop.propagate(datetime(2026, 5, 18, 12, 0, 0, tzinfo=timezone.utc))
             payload = state.to_payload()
@@ -94,31 +95,92 @@ class TestOrbitalPropagatorFallback:
 
 class TestOrbitalPropagatorLiveTle:
     def test_uses_fetched_tle(self):
-        with patch("orbit._fetch_tle_spacetrack", return_value=_FALLBACK_TLE):
+        with patch("orbit._fetch_tle", return_value=_FALLBACK_TLE):
             prop = OrbitalPropagator(_DEFAULT_NORAD_ID)
             now = datetime.now(timezone.utc)
             state = prop.propagate(now)
             assert isinstance(state, OrbitalState)
 
     def test_propagate_default_time_is_now(self):
-        with patch("orbit._fetch_tle_spacetrack", return_value=_FALLBACK_TLE):
+        with patch("orbit._fetch_tle", return_value=_FALLBACK_TLE):
             prop = OrbitalPropagator(_DEFAULT_NORAD_ID)
             state = prop.propagate()
             assert state.timestamp_utc.tzinfo is not None
 
 
-# ── _fetch_tle_spacetrack — missing credentials ───────────────────────────────
+# ── _fetch_tle — ne-body cache endpoint ──────────────────────────────────────
 
-class TestFetchTleSpacetrack:
-    def test_returns_none_without_credentials(self):
-        from orbit import _fetch_tle_spacetrack
-        with patch.dict(os.environ, {"SPACETRACK_USER": "", "SPACETRACK_PASS": ""}, clear=False):
-            result = _fetch_tle_spacetrack("25544")
+class TestFetchTleNebody:
+    """Tests for _fetch_tle(), which reads TLEs from the ne-body cache API."""
+
+    def _nebody_ok_response(self) -> MagicMock:
+        """Build a mock httpx.Response matching the ne-body /tle/{id}/latest schema."""
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {
+            "norad_id": 25544,
+            "epoch_utc": "2026-07-04T12:00:00Z",
+            "tle_line1": _FALLBACK_TLE[0],
+            "tle_line2": _FALLBACK_TLE[1],
+            "fetched_at": "2026-07-04T12:05:00Z",
+            "source": "space_track",
+        }
+        return mock_resp
+
+    def test_returns_tle_tuple_on_success(self):
+        """ne-body returns 200 with valid JSON — function extracts (line1, line2)."""
+        from orbit import _fetch_tle
+        with (
+            patch.dict(os.environ, {"NEBODY_URL": "http://keep-0001:8000"}, clear=False),
+            patch("orbit.httpx.get", return_value=self._nebody_ok_response()) as mock_get,
+        ):
+            result = _fetch_tle("25544")
+            assert result == (_FALLBACK_TLE[0], _FALLBACK_TLE[1])
+            mock_get.assert_called_once()
+            called_url = mock_get.call_args.args[0]
+            assert called_url == "http://keep-0001:8000/tle/25544/latest"
+
+    def test_returns_none_on_connect_error(self):
+        """ne-body unreachable (connection refused) — returns None without raising."""
+        from orbit import _fetch_tle
+        with (
+            patch.dict(os.environ, {"NEBODY_URL": "http://keep-0001:8000"}, clear=False),
+            patch("orbit.httpx.get", side_effect=httpx.ConnectError("Connection refused")),
+        ):
+            result = _fetch_tle("25544")
             assert result is None
 
-    def test_returns_none_when_user_missing(self):
-        from orbit import _fetch_tle_spacetrack
-        env = {k: v for k, v in os.environ.items() if k not in ("SPACETRACK_USER", "SPACETRACK_PASS")}
-        with patch.dict(os.environ, env, clear=True):
-            result = _fetch_tle_spacetrack("25544")
+    def test_returns_none_on_404(self):
+        """ne-body returns 404 (object not in its cache) — returns None."""
+        from orbit import _fetch_tle
+        mock_resp = MagicMock()
+        mock_resp.status_code = 404
+        with (
+            patch.dict(os.environ, {"NEBODY_URL": "http://keep-0001:8000"}, clear=False),
+            patch("orbit.httpx.get", return_value=mock_resp),
+        ):
+            result = _fetch_tle("25544")
             assert result is None
+
+    def test_returns_none_when_nebody_url_not_set(self):
+        """NEBODY_URL not configured — returns None without calling httpx.get at all."""
+        from orbit import _fetch_tle
+        env_without_nebody = {k: v for k, v in os.environ.items() if k != "NEBODY_URL"}
+        with (
+            patch.dict(os.environ, env_without_nebody, clear=True),
+            patch("orbit.httpx.get") as mock_get,
+        ):
+            result = _fetch_tle("25544")
+            assert result is None
+            mock_get.assert_not_called()
+
+    def test_propagator_falls_back_when_nebody_unreachable(self):
+        """Propagator degrades to _FALLBACK_TLE when ne-body is down."""
+        with (
+            patch.dict(os.environ, {"NEBODY_URL": "http://keep-0001:8000"}, clear=False),
+            patch("orbit.httpx.get", side_effect=httpx.ConnectError("Connection refused")),
+        ):
+            prop = OrbitalPropagator(_DEFAULT_NORAD_ID)
+            state = prop.propagate(datetime(2026, 5, 18, 12, 0, 0, tzinfo=timezone.utc))
+            assert isinstance(state, OrbitalState)
+            assert state.norad_id == _DEFAULT_NORAD_ID
