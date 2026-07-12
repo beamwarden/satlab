@@ -184,7 +184,7 @@ export SATLAB_SERIAL_PORT=/dev/ttyACM0   # adjust if needed
 export BEAMWARDEN_URL=http://<beamwarden-host>:8000
 export BEAMWARDEN_TOKEN=<token-from-beamwarden>
 export SATLAB_NORAD_ID=25544
-export NEBODY_URL=http://keep-0001:8000          # or http://192.168.1.215:8000 if Tailscale is down
+export NEBODY_URL=http://keep-0001:8001          # ne-body backend port; falls back to 192.168.1.206:8001 if hostname resolution fails
 export NEBODY_API_KEY=<key-if-nebody-auth-enabled>  # omit if ne-body runs without auth
 
 # 5. Run the agent
