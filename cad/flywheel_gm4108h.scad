@@ -12,13 +12,30 @@
 // (web in the middle is thin) to maximize moment of inertia per gram, so the
 // motor gets the most angular-momentum authority for the least rotor load.
 //
-// !!! VERIFY BEFORE PRINTING !!!
-// The GM4108H rotor bolt pattern below is a PLACEHOLDER. Measure your motor's
-// rotating bell: the mounting-hole bolt-circle diameter, hole count, hole
-// size, and the diameter/height of the center boss. Set the `mount_*` and
-// `boss_*` parameters to your measured values. The flywheel bolts to the
-// ROTOR (the part that spins), not the stator and not the shaft -- the shaft
-// end is reserved for the AS5600 encoder magnet.
+// MEASURED 2026-08-08 (digital caliper, off the physical motor):
+// The rotor bell (the outer barrel + this cap -- confirmed by spin test: the
+// barrel turns freely as one piece with this face) is NOT the same face as
+// the wire-exit base. That base is fixed/stationary and carries a small
+// protruding shaft stub; this cap has no protrusion at all -- the 7.85mm
+// center feature is a flush RECESSED bore, nothing sticks through it. So
+// unlike the original charleslabs-derived assumption, the flywheel hub does
+// not need to clear a protruding shaft on this face -- `shaft_clearance()`
+// below is now just a plain pass-through bore, not a boss pocket.
+//   - Cap OD: 47.13mm
+//   - Center bore: 7.85mm (recessed, flush -- not a protrusion)
+//   - Mounting holes: 4, bolt-circle diameter 30.80mm (33.19mm outer-edge-to
+//     -outer-edge across two opposite holes, minus the 2.39mm hole dia)
+//   - Hole diameter: 2.39mm as measured -- likely M2 (clearance hole, not
+//     confirmed as tapped vs through on the motor side). `mount_bolt_d`
+//     below is set for a loose M2 clearance fit with FDM shrinkage margin,
+//     NOT a direct copy of the measured 2.39mm -- treat this one value as
+//     still-inferred and verify with `cad/print_test_coupon.scad` before
+//     committing to the full ~2hr print.
+//
+// NOTE for docs/reaction-wheel.md: the shaft does not rotate (it's fixed to
+// the stationary base plate), so the AS5600 encoder magnet cannot go on "the
+// shaft end" as currently written -- it needs to mount on the rotating bell
+// instead. Not fixed here; flagged for a follow-up doc edit.
 // ---------------------------------------------------------------------------
 
 /* [Wheel] */
@@ -28,14 +45,14 @@ rim_height          = 16;    // axial height of the rim (mm) -- matches charlesl
 web_height          = 4;     // thickness of the central web connecting hub to rim (mm)
 
 /* [Hub / motor interface] */
-boss_clear_d        = 11;    // bore to clear the 10 mm hollow shaft / rotor boss (mm). >10 so the wheel never touches the shaft.
-boss_clear_h        = 6;     // depth of the shaft/boss clearance recess from the motor side (mm)
-hub_d               = 34;    // diameter of the solid hub region around the bolt circle (mm)
+boss_clear_d        = 8.5;   // plain pass-through bore over the recessed 7.85mm register (mm) -- no protrusion to clear on this face, just clearance so the hub material doesn't foul the register ring.
+boss_clear_h        = 6;     // unused now that shaft_clearance() is a single through-bore; kept for reference, see module below.
+hub_d               = 44;    // diameter of the solid hub region around the bolt circle (mm) -- sized to clear the 30.80mm bolt circle + counterbores with margin, roughly matching the 47.13mm cap OD.
 
-mount_bolt_circle_d = 25;    // PLACEHOLDER: GM4108H rotor mounting bolt-circle diameter (mm) -- MEASURE
-mount_bolt_count    = 3;     // PLACEHOLDER: number of rotor mounting holes -- MEASURE
-mount_bolt_d        = 3.4;   // clearance hole for M3 (mm). Change if your motor uses M2.5.
-mount_cbore_d       = 6.5;   // counterbore so the screw head sits flush/below the web (mm)
+mount_bolt_circle_d = 30.80; // MEASURED: GM4108H rotor mounting bolt-circle diameter (mm)
+mount_bolt_count    = 4;     // MEASURED: number of rotor mounting holes
+mount_bolt_d        = 2.7;   // loose clearance for the measured ~2.39mm holes (assumed M2), plus FDM shrinkage margin -- verify with the test coupon.
+mount_cbore_d       = 6.5;   // counterbore so the screw head sits flush/below the web (mm) -- screw head size not measured, kept as a reasonable default.
 mount_cbore_h       = 3;     // counterbore depth (mm)
 
 /* [Adjustable tuning masses] */
@@ -82,9 +99,9 @@ module mount_holes() {
 }
 
 module shaft_clearance() {
-    // recess on the motor side so the wheel clears the shaft/boss
-    translate([0,0,-1]) cylinder(h = boss_clear_h + 1, d = boss_clear_d + 2); // boss pocket
-    translate([0,0,-1]) cylinder(h = rim_height + 2, d = boss_clear_d);        // through bore for shaft
+    // plain through-bore over the recessed register on the rotor cap --
+    // nothing protrudes into this face, so no stepped pocket is needed.
+    translate([0,0,-1]) cylinder(h = rim_height + 2, d = boss_clear_d);
 }
 
 module tuning_holes() {

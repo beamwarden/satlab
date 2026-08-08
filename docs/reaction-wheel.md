@@ -49,7 +49,9 @@ SimpleFOC Shield v2 stacks directly onto the Uno Q as an Arduino shield — no b
 
 ### Encoder mounting
 
-Epoxy a 10×2mm diametrically magnetized disk magnet to the motor shaft end (shaft OD is 10mm; hollow ID (inner diameter) is 8mm). Mount the AS5600 breakout centered over the shaft on a small standoff (1–2mm gap). The AS5600 connects to Uno Q I2C (SDA (Serial Data) / SCL (Serial Clock)).
+**Corrected 2026-08-08** (physical inspection with a spin test + caliper measurements): the shaft does *not* rotate — it's fixed to the stationary base plate, the same face the phase wires terminate on. The rotating part is the outer bell (barrel + the opposite cap, confirmed turning together as one piece), which is also the face the flywheel bolts to (see `cad/flywheel_gm4108h.scad`). The original plan to epoxy the magnet to "the shaft end" would put it on the part that never moves, which would give the encoder nothing to read.
+
+Epoxy the 10×2mm diametrically magnetized disk magnet to the rotating bell instead — centered over its recessed bore, on the same face the flywheel mounts to (or to the back of the flywheel hub itself, once mounted). Mount the AS5600 breakout on a small standoff (1–2mm gap) fixed to the stationary side (the base plate or a bracket on the motor holder — see below), so it reads the magnet sweeping past on each rotation. The AS5600 connects to Uno Q I2C (SDA (Serial Data) / SCL (Serial Clock)).
 
 ### Platform wire routing
 
@@ -147,9 +149,9 @@ Their firmware (`PID.h`, `Arduino_ReactionWheel.ino`) confirms the cascaded-PID 
 
 ### Flywheel — `cad/flywheel_gm4108h.scad`
 
-Parametric OpenSCAD model for our motor: a **rim-loaded disk** (mass concentrated in a thick outer rim, thin central web) to maximize moment of inertia per gram. Default OD 120 mm, rim 16 mm tall × 12 mm wide. The flywheel bolts to the **rotor (spinning bell)** — the shaft end stays reserved for the AS5600 encoder magnet. A ring of M8 pockets carries the charleslabs-style adjustable tuning masses.
+Parametric OpenSCAD model for our motor: a **rim-loaded disk** (mass concentrated in a thick outer rim, thin central web) to maximize moment of inertia per gram. Default OD 120 mm, rim 16 mm tall × 12 mm wide. The flywheel bolts to the **rotor (spinning bell)** — confirmed by spin test and caliper to be the cap opposite the wire-exit base, with no shaft protrusion on that face (see the encoder mounting correction above). A ring of M8 pockets carries the charleslabs-style adjustable tuning masses.
 
-> **VERIFY BEFORE PRINTING:** the GM4108H rotor bolt-circle diameter, hole count, hole size, and center-boss diameter in the `.scad` are placeholders — measure your motor and set the `mount_*` / `boss_*` parameters before slicing.
+> **MEASURED 2026-08-08:** rotor bolt pattern confirmed off the physical motor — 4 holes, 30.80mm bolt-circle diameter, ~2.39mm hole diameter (assumed M2), 47.13mm cap OD, 7.85mm recessed center bore (no protrusion). `mount_bolt_d`/`mount_cbore_d` are still a best-guess clearance fit, not a measured screw — no screws came with the motor, so verify against `cad/print_test_coupon.scad` before committing to the full print.
 
 Render to STL:
 ```bash
@@ -160,7 +162,7 @@ Print notes: PLA is fine for the demonstrator (PETG if it sits near motor heat);
 
 ### Motor holder (to design)
 
-The GM4108H needs a holder matched to its round body and bolt pattern — the charleslabs NEMA 17 holder cannot be reused. Hold the motor coaxial with the rotating platform, leave clearance for the AS5600 standoff over the shaft end, and seat against the platform plate. Not yet modeled.
+The GM4108H needs a holder matched to its round body and bolt pattern — the charleslabs NEMA 17 holder cannot be reused. Hold the motor coaxial with the rotating platform, and provide a fixed mounting point for the AS5600 standoff near the rotating bell's flywheel face (not the shaft — see the encoder mounting correction above), seated against the platform plate. Not yet modeled.
 
 ### Pivot frame (to design)
 
