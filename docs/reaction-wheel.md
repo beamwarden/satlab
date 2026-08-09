@@ -151,14 +151,22 @@ Their firmware (`PID.h`, `Arduino_ReactionWheel.ino`) confirms the cascaded-PID 
 
 Parametric OpenSCAD model for our motor: a **rim-loaded disk** (mass concentrated in a thick outer rim, thin central web) to maximize moment of inertia per gram. Default OD 120 mm, rim 16 mm tall × 12 mm wide. The flywheel bolts to the **rotor (spinning bell)** — confirmed by spin test and caliper to be the cap opposite the wire-exit base, with no shaft protrusion on that face (see the encoder mounting correction above). A ring of M8 pockets carries the charleslabs-style adjustable tuning masses.
 
-> **MEASURED 2026-08-08:** rotor bolt pattern confirmed off the physical motor — 4 holes, 30.80mm bolt-circle diameter, ~2.39mm hole diameter (assumed M2), 47.13mm cap OD, 7.85mm recessed center bore (no protrusion). `mount_bolt_d`/`mount_cbore_d` are still a best-guess clearance fit, not a measured screw — no screws came with the motor, so verify against `cad/print_test_coupon.scad` before committing to the full print.
+> **MEASURED 2026-08-08:** rotor bolt pattern confirmed off the physical motor — 4 holes, 30.80mm bolt-circle diameter, 47.13mm cap OD, 7.85mm recessed center bore (no protrusion). `mount_bolt_d`/`mount_cbore_d` are sized off the motor's own screw packet (found partway through the session): 2.78mm shaft, 5.39mm head — motor holes are tapped, not clearance-bored.
+>
+> **PRINTED SUCCESSFULLY 2026-08-08** on the K2 Pro Combo (stock 0.2mm nozzle) — third attempt, after two `F00528` ("printing without extruding") faults traced to the fine nozzle's flow-rate limit under default wall/infill speeds, not a clog. Fixed with reduced speeds (outer wall ~25-30mm/s, inner wall ~35-40mm/s, infill ~50-60mm/s, 4-5 slow first layers) and 0.18mm layer height; print time went from an estimated 4h4m to 10h35m as the real cost of running a fine-detail nozzle outside its intended use case. Part came out clean — correct hole count/spacing, good surface finish, no warping — but the orange/black color split (`flywheel_orange()`/`flywheel_black()` below) did not visibly alternate on the CFS despite slicing clean with two filament slots assigned; not yet diagnosed (bay-color mismatch vs. the swap never triggering are both still open). Not yet physically test-fit onto the motor.
 
 Render to STL:
 ```bash
 openscad -o cad/flywheel_gm4108h.stl cad/flywheel_gm4108h.scad
 ```
 
-Print notes: PLA is fine for the demonstrator (PETG if it sits near motor heat); 50–60% infill or solid rim (6+ perimeters) to keep mass in the rim; print web-side down, counterbores up — no supports.
+For the CFS alternating-color print, render the two halves separately and import both into your slicer at the same origin (see `color_segments`/`color_cap_height` params and the `render_part` switch at the bottom of the `.scad`):
+```bash
+openscad -D 'render_part="orange"' -o cad/flywheel_gm4108h_orange.stl cad/flywheel_gm4108h.scad
+openscad -D 'render_part="black"' -o cad/flywheel_gm4108h_black.stl cad/flywheel_gm4108h.scad
+```
+
+Print notes: PLA is fine for the demonstrator (PETG if it sits near motor heat); 50–60% infill or solid rim (6+ perimeters) to keep mass in the rim; print web-side down, counterbores up — no supports. **On a fine-detail nozzle (0.2mm or similar), cut wall/infill speeds well below default and expect a much longer print** — see the 2026-08-08 note above.
 
 ### Motor holder (to design)
 

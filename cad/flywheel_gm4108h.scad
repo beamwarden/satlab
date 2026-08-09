@@ -25,12 +25,12 @@
 //   - Center bore: 7.85mm (recessed, flush -- not a protrusion)
 //   - Mounting holes: 4, bolt-circle diameter 30.80mm (33.19mm outer-edge-to
 //     -outer-edge across two opposite holes, minus the 2.39mm hole dia)
-//   - Hole diameter: 2.39mm as measured -- likely M2 (clearance hole, not
-//     confirmed as tapped vs through on the motor side). `mount_bolt_d`
-//     below is set for a loose M2 clearance fit with FDM shrinkage margin,
-//     NOT a direct copy of the measured 2.39mm -- treat this one value as
-//     still-inferred and verify with `cad/print_test_coupon.scad` before
-//     committing to the full ~2hr print.
+//   - Motor hole diameter: 2.39mm as measured -- these are TAPPED holes
+//     (confirmed once the motor's screw packet was found: 2.78mm shaft,
+//     5.39mm head -- shaft is larger than the 2.39mm hole reading because
+//     that reading was off the thread crests, not a clearance bore). Screws
+//     thread into the motor; `mount_bolt_d`/`mount_cbore_d` below are clearance
+//     for the FLYWHEEL side only, sized off the real screw dimensions.
 //
 // NOTE for docs/reaction-wheel.md: the shaft does not rotate (it's fixed to
 // the stationary base plate), so the AS5600 encoder magnet cannot go on "the
@@ -51,8 +51,8 @@ hub_d               = 44;    // diameter of the solid hub region around the bolt
 
 mount_bolt_circle_d = 30.80; // MEASURED: GM4108H rotor mounting bolt-circle diameter (mm)
 mount_bolt_count    = 4;     // MEASURED: number of rotor mounting holes
-mount_bolt_d        = 2.7;   // loose clearance for the measured ~2.39mm holes (assumed M2), plus FDM shrinkage margin -- verify with the test coupon.
-mount_cbore_d       = 6.5;   // counterbore so the screw head sits flush/below the web (mm) -- screw head size not measured, kept as a reasonable default.
+mount_bolt_d        = 3.1;   // MEASURED: actual screw (from the motor's hardware packet) has a 2.78mm shaft -- motor holes are tapped, screws thread into the motor, not through-bolted. 3.1mm gives ~0.3mm clearance for a free fit + FDM shrinkage.
+mount_cbore_d       = 6.0;   // MEASURED: screw head is 5.39mm -- 6.0mm gives clearance for the head to sit flush/below the web.
 mount_cbore_h       = 3;     // counterbore depth (mm)
 
 /* [Adjustable tuning masses] */
@@ -63,6 +63,19 @@ tuning_enable       = true;
 tuning_count        = 6;     // number of pockets around the rim (use an even count for easy balancing)
 tuning_bore_d       = 8.5;   // through-hole for M8 (mm)
 tuning_pcd          = 90;    // pitch-circle diameter the tuning holes sit on (mm). Keep inside the rim.
+
+/* [CFS multi-material color pattern] */
+// Alternating orange/black wedges on the top (non-motor, visible) face only
+// -- a thin cap, not full rim height -- so the "is it spinning" visual comes
+// from far fewer filament swaps. Full-height wedges would mean a swap at
+// every wedge boundary on every layer (~320 swaps at 0.2mm layers over the
+// full 16mm rim_height); capped at 3mm that drops to ~60. Base color (all
+// material below the cap, plus the "black" wedges within the cap) prints in
+// one continuous object; "orange" is a second object for the other wedges.
+// Import both STLs into OrcaSlicer at the same origin, assign to different
+// CFS filament slots.
+color_segments      = 4;     // alternating wedge count (even number). 4 = 90 deg wedges, fewer per-layer swaps.
+color_cap_height     = 3;    // mm of color pattern at the top (visible, non-motor) face. Rest of rim_height prints as the base/black object.
 
 /* [Quality] */
 $fn                 = 160;
@@ -126,7 +139,48 @@ module flywheel() {
     }
 }
 
-flywheel();
+// Angular wedge mask from a0 to a1 degrees, radius r, height h, at the given
+// z offset. Follows the arc with intermediate points so it never chords
+// inward of the flywheel's actual radius, regardless of wedge angle.
+module pie_mask(a0, a1, r, h, z0, steps = 8) {
+    pts = concat([[0, 0]],
+                 [for (i = [0 : steps]) let(a = a0 + (a1 - a0) * i / steps) [r * cos(a), r * sin(a)]]);
+    translate([0, 0, z0]) linear_extrude(height = h) polygon(pts);
+}
+
+module color_cap(parity) {
+    // parity 0 = wedge indices 0,2,4... ; parity 1 = wedge indices 1,3,5...
+    union()
+        for (i = [0 : color_segments - 1])
+            if (i % 2 == parity)
+                pie_mask(i * 360 / color_segments, (i + 1) * 360 / color_segments,
+                         wheel_od, color_cap_height + 1, rim_height - color_cap_height);
+}
+
+module flywheel_orange() {
+    intersection() {
+        flywheel();
+        color_cap(0);
+    }
+}
+
+module flywheel_black() {
+    difference() {
+        flywheel();
+        flywheel_orange();
+    }
+}
+
+/* [Render selection] */
+// "full" | "orange" | "black" -- which body this render produces. Render
+// orange and black separately (openscad -D 'render_part="orange"' ...) for
+// the two CFS multi-material STLs; "full" (default) renders the single-color
+// part as before.
+render_part = "full";
+
+if (render_part == "orange") flywheel_orange();
+else if (render_part == "black") flywheel_black();
+else flywheel();
 
 // ---------------------------------------------------------------------------
 // Rough inertia sanity check (PLA ~1.24 g/cm^3):
