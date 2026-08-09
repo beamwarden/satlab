@@ -5,6 +5,30 @@ Most recent entry first.
 
 ---
 
+## 2026-08-08
+
+### Track 3: Creality K2 Pro Combo arrived, flywheel rotor bolt pattern measured off the physical motor, first successful print
+
+Creality K2 Pro Combo (CFS multi-material) arrived and was set up on stock LAN Mode + OrcaSlicer (per the standing plan). Used it to close out the long-open flywheel blocker: the GM4108H rotor bolt pattern in `cad/flywheel_gm4108h.scad` had been placeholder values since the CAD was first written.
+
+**Measured off the physical motor** (digital caliper + a spin test to identify which face is actually the rotor): 4 mounting holes on a 30.80mm bolt circle (33.19mm outer-edge-to-outer-edge minus the 2.39mm hole diameter), 47.13mm cap OD, 7.85mm recessed center bore with no protrusion. The spin test also found the shaft itself doesn't rotate — it's fixed to the stationary wire-exit base, not the rotating bell — which invalidated `docs/reaction-wheel.md`'s original plan to epoxy the AS5600 encoder magnet to "the shaft end." Doc corrected to mount the magnet on the rotating bell instead. Motor's screw packet was found partway through (2.78mm shaft, 5.39mm head), giving real numbers for `mount_bolt_d`/`mount_cbore_d` instead of an assumed M2 clearance fit. All of this committed to `feature/reaction-wheel-cad` (`c4021ea`).
+
+**Added a 4-segment alternating-color cap** (`color_segments`/`color_cap_height` params, `pie_mask()`/`flywheel_orange()`/`flywheel_black()` modules) so the wheel's rotation would be visible by eye — full-height alternating wedges were costed out at ~320 filament swaps over the 16mm rim at a normal layer height; capping the pattern to the top 3mm dropped that to ~60-85 depending on layer height. Split STLs rendered and validated via a colored preview render before committing any filament.
+
+**First print attempt failed twice** on the stock 0.2mm nozzle:
+1. First run tripped Klipper's `F00528` ("printing without extruding") at 0% progress, still in the solid base — turned out to be a cold-start extrusion failure, not a clog (manual extrude test after raising temp back up worked cleanly).
+2. Resliced with the two-part STLs merged as a single multi-part object (first attempt had them as independent objects that got auto-arranged apart — OrcaSlicer's overlap-conflict warning caught this before printing, not after) — tripped `F00528` again.
+
+Root cause on the second failure: the stock nozzle is 0.2mm, a fine-detail nozzle nowhere near sized for a large, thick, 4-wall multi-material part like this. Its max volumetric flow rate can't keep up with default wall/infill speeds (outer wall 100mm/s, inner wall 150mm/s, infill 120-150mm/s) — looks fine on a slow manual extrude test, chokes under sustained print-speed flow demand. Fixed by cutting speeds substantially (outer wall ~25-30mm/s, inner wall ~35-40mm/s, infill ~50-60mm/s, 4-5 slow first layers) and bumping layer height to 0.18mm (90% of nozzle diameter — right at the edge of safe interlayer bonding, accepted as a tradeoff for fewer total layers/swaps). Print time went from an estimated 4h4m to 10h35m as a result — a real cost of running a fine nozzle outside its intended use case, not a design or slicing problem.
+
+**Third attempt succeeded.** Clean part: correct hole count/spacing on both the mount bolt circle and the tuning-mass ring, good surface finish, no warping. One open question: **the orange/black color split did not visibly alternate** — printed as one solid color throughout despite the multi-part/multi-filament setup slicing clean (no conflict warning, two filament slots assigned). Not yet diagnosed whether the CFS never actually triggered a toolhead swap, or the two assigned filament slots happened to be visually similar colors. Not investigated further this session — priority was a mechanically correct part, which this is.
+
+Along the way: replaced the deprecated `openscad` Homebrew cask (2021.01, flagged for removal 2026-09-01 over a macOS Gatekeeper signing issue) with `openscad@snapshot` (2026.06.12) on the dev Mac.
+
+**Next:** bolt the printed flywheel onto the GM4108H rotor as the real functional test (fit was never physically verified beyond the print completing cleanly). If the color-alternation question matters later, check CFS bay-to-slot color assignment before re-printing rather than reslicing blind.
+
+---
+
 ## 2026-07-29
 
 ### CI/CD deploy pipeline debugged end-to-end on both Pis (first real exercise since PR #2/#3)
