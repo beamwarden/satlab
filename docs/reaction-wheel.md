@@ -18,22 +18,26 @@ Fallback: if the pivot frame is not yet built, the wheel + control stack runs as
 
 ### Parts to acquire
 
+**Reconciled against hangar (192.168.1.223:8788) 2026-08-09** — several items below were carried over from the original build plan as "to acquire" but have actually been on hand for a while; moved to the table below. Genuinely still outstanding:
+
 | Item | Part | Qty | ~Cost |
 |---|---|---|---|
-| Gimbal BLDC | iPower GM4108H-120T (24N/22P, ~27KV (RPM/volt), 10mm hollow shaft) | 1 | $35.90 |
-| FOC (Field-Oriented Control) driver | SimpleFOC Shield v2 | 1 | $30 |
-| Magnetic encoder | AS5600 breakout (I2C (Inter-Integrated Circuit), 12-bit) | 1 | $5 |
-| Encoder magnet | 10×2mm diametrically magnetized disk (for 10mm shaft) | 1 | $2 |
-| Pivot bearings | 608ZZ | 2 | $2 |
 | Pivot axle | Hollow steel shaft, ~8mm OD (outer diameter), ~100mm length | 1 | $5 |
-| Power | 3S LiPo (Lithium Polymer, 3 cells in series) 1000mAh or bench PSU (Power Supply Unit) (12V/3A) | 1 | $15–40 |
-| Flywheel | 3D printed rim-loaded disk — see [3D printed parts](#3d-printed-parts) (`cad/flywheel_gm4108h.scad`) | 1 | — |
-| Pivot frame | 3D printed or aluminum extrusion — see [3D printed parts](#3d-printed-parts) | — | — |
+| Power | 3S LiPo (Lithium Polymer, 3 cells in series) 1000mAh or bench PSU (Power Supply Unit) (12V/3A), dedicated to this build — the on-hand Meshnology 3000mAh LiPoly is earmarked for the Wio Tracker L1 crosslink, not this | 1 | $15–40 |
+| M8 bolts + nuts | Adjustable flywheel tuning masses (see [3D printed parts](#3d-printed-parts)) | ~6 | — |
+| Pivot frame | 3D printed or aluminum extrusion — see [3D printed parts](#3d-printed-parts), not yet modeled | — | — |
+| Motor holder | 3D printed, matched to GM4108H's round body/bolt pattern — see [3D printed parts](#3d-printed-parts), not yet modeled | 1 | — |
 
 ### Parts already on hand (relevant to this build)
 
 | Item | Role |
 |---|---|
+| iPower GM4108H-120T BLDC gimbal motor | Reaction wheel drive |
+| SimpleFOC Shield v2 (IR2104/INA240) | FOC driver, stacks on Uno Q |
+| AS5600 breakout + 10×2mm magnet | Rotor position feedback (see corrected mounting note above) |
+| 608ZZ bearings | ×10 on hand, only 2 needed for the pivot axle |
+| Motor mounting screws | Found in a packet with the motor, 2026-08-08: 2.78mm shaft, 5.39mm head. Thread directly into the rotor's tapped holes — no nuts needed. `cad/flywheel_gm4108h.scad`'s `mount_bolt_d`/`mount_cbore_d` are sized for these exact screws. |
+| Flywheel | **Printed 2026-08-08** on the K2 Pro Combo — see the print note above. Not yet bolted to the motor. |
 | Arduino Uno Q | Wheel controller — mounts on platform, runs SimpleFOC inner loop |
 | Arduino Uno R3 | Sensor telemetry — unchanged, stays on base |
 | Raspberry Pi 3 (×2) | RPi agent / outer attitude loop — stays on base |
