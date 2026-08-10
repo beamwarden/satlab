@@ -13,12 +13,19 @@ Required environment variables:
     BEAMWARDEN_TOKEN      Beamrider bearer token from Beamwarden
     SATLAB_NORAD_ID       NORAD ID to propagate (default: 25544 — ISS)
     SATLAB_NODE_ID        Stable node identity UUID (generated at startup if absent)
+
+Optional (reaction-wheel demonstrator, see docs/reaction-wheel.md):
+    SATLAB_WHEEL_PORT     Serial device for the Uno Q wheel controller
+                          (e.g. /dev/ttyACM1). If unset, the wheel reader
+                          and outer attitude loop are skipped entirely --
+                          existing nodes without this hardware are unaffected.
 """
 
 import logging
 import os
 import signal
 import sys
+import threading
 import time
 from datetime import datetime, timezone
 
@@ -28,6 +35,7 @@ from health import HealthVector, NodeState
 from orbit import OrbitalPropagator
 from serial_reader import read_packets
 from thresholds import ViolationLevel, evaluate
+from wheel_controller import WheelController
 
 logging.basicConfig(
     level=logging.INFO,
@@ -58,6 +66,34 @@ def _require_env(name: str) -> str:
     return val
 
 
+def _wheel_reader_loop(port: str, client: BeamwardenClient) -> None:
+    """Background thread: ingest wheel telemetry from the Uno Q. Same
+    newline-delimited JSON protocol as the main subsystem link (see
+    docs/reaction-wheel.md Serial protocol), so this reuses read_packets()
+    directly rather than a separate wheel_reader module."""
+    for packet in read_packets(port):
+        subsystem   = packet.get("subsystem", "unknown")
+        sensor_name = packet.get("sensor", "unknown")
+        payload     = packet.get("payload", {})
+
+        if subsystem == "system" and sensor_name == "init":
+            logger.info("wheel controller init: %s", payload)
+            continue
+
+        now = datetime.now(timezone.utc)
+        ts_str = packet.get("ts", "")
+        try:
+            recorded_at = datetime.fromisoformat(ts_str)
+            if recorded_at.tzinfo is None:
+                recorded_at = now
+        except ValueError:
+            recorded_at = now
+
+        full_sensor = f"{subsystem}_{sensor_name}"
+        if not client.ingest(sensor_name=full_sensor, recorded_at=recorded_at, payload=payload):
+            logger.warning("ingest failed for %s — reading dropped", full_sensor)
+
+
 def main() -> None:
     serial_port = _require_env("SATLAB_SERIAL_PORT")
     bw_url      = _require_env("BEAMWARDEN_URL")
@@ -69,16 +105,35 @@ def main() -> None:
     vector     = HealthVector()
     bench      = Benchmarker()
 
+    wheel_controller: WheelController | None = None
+    wheel_port = os.environ.get("SATLAB_WHEEL_PORT")
+    if wheel_port:
+        threading.Thread(
+            target=_wheel_reader_loop, args=(wheel_port, client), daemon=True,
+        ).start()
+
+        wheel_controller = WheelController(wheel_port)
+        if wheel_controller.start():
+            threading.Thread(target=wheel_controller.run_forever, daemon=True).start()
+            # NOT yet wired: no Beamwarden endpoint exists to fetch attitude
+            # commands (BeamwardenClient only has ingest()). wheel_controller
+            # .set_target() is reachable for bench testing (build sequence
+            # step 6) but nothing calls it yet in production.
+        else:
+            logger.warning("wheel controller BNO055 init failed — outer attitude loop not started")
+
     def _on_exit(signum, frame):
         bench.log_summary()
+        if wheel_controller:
+            wheel_controller.stop()
         sys.exit(0)
 
     signal.signal(signal.SIGINT,  _on_exit)
     signal.signal(signal.SIGTERM, _on_exit)
 
     logger.info(
-        "satlab agent starting — port=%s beamwarden=%s norad=%s node_id=%s",
-        serial_port, bw_url, norad_id, vector.node_id,
+        "satlab agent starting — port=%s beamwarden=%s norad=%s node_id=%s wheel_port=%s",
+        serial_port, bw_url, norad_id, vector.node_id, wheel_port or "disabled",
     )
 
     last_orbit_push: float = 0.0

@@ -5,6 +5,96 @@ Most recent entry first.
 
 ---
 
+## 2026-08-10
+
+### Flywheel mount-hole engagement fixed and validated via fast test coupons
+
+The 2026-08-08 print had zero thread engagement into the motor (screws landed flush at the bottom face with nothing to bite into). Rather than re-running the ~10h full print each iteration, added a `quarter` render mode to `cad/flywheel_gm4108h.scad` — a 90° wedge centered on one mount hole, carrying a full through-hole + counterbore for a real dry-fit in minutes instead of hours.
+
+First pass (`mount_cbore_h = 7.4mm`, targeting 4mm engagement) still left a ~1mm gap — the screw was bottoming out in the motor's tapped hole before its head reached the counterbore shoulder, meaning real engagement was only ~3mm. Backed off to `mount_cbore_h = 5.9mm` (2.5mm target, with margin below the observed limit). Second coupon printed flush, no gap. **Cleared to reprint the full flywheel** at this setting.
+
+Also caught mid-session: the printer's stock nozzle is 0.4mm and always has been — `ENGINEERING_LOG.md`'s 2026-08-09 entry and `docs/reaction-wheel.md` both wrongly attributed the original `F00528` faults to a "fine 0.2mm nozzle," which was never installed. Corrected in both places; the speed/layer-height fix that actually worked is unaffected, but the causal story attached to it was wrong and is now flagged as unconfirmed rather than restated as fact.
+
+### CFS color-split diagnosed and fixed
+
+The 2026-08-08 print's orange/black cap never visibly alternated despite slicing clean. Found one real (harmless) bug in `color_cap()` — it used the wheel's diameter as a radius argument, silently absorbed by a downstream `intersection()` so it didn't affect the actual exported geometry. The real cause was a slicer-workflow problem: two independently-imported STLs need to land at the exact same relative position to combine into one multi-color part, and if auto-arrange or a "drop to bed" import spreads them apart, the result is two separate single-color objects that still slice without errors — consistent with what was observed.
+
+Added `quarter_orange`/`quarter_black` render modes (same fast-coupon approach as the mount-hole fix) to test this cheaply. Imported both into Creality Print together; it detected the shared coordinate space and offered to load them as one object with two parts — confirming the alignment risk never actually hit. Assigned each part to a separate CFS slot and printed: clean, correctly-registered orange/black transition. **Full-size CFS flywheel reprint is cleared**, no longer blocked on this.
+
+### Pivot frame bearing-pocket test coupon added
+
+`cad/pivot_frame.scad` had an unverified press-fit guess (`bearing_fit_clearance = -0.15mm`) sitting ahead of a full ~32mm hub / 130mm platform print. Added a `bearing_test` render mode (short cylinder, one pocket) to check the fit cheaply before committing to the full print, same reasoning as both fixes above. Not yet printed.
+
+### Motor holder unblocked — all measurements in hand, not yet modeled
+
+Base-plate hole spacing (clean square, 26.32mm side), hole diameter (2.3mm), base OD (47.05mm, matches the previously-measured rotor bell OD), and the center hex nut (12.8mm across-flats, ~1mm proud) are all now measured off the physical motor. The motor holder itself has not been modeled yet — next session.
+
+### Firmware scaffolded for the reaction wheel
+
+Added `arduino/wheel_controller/wheel_controller.ino` (Uno Q: SimpleFOC velocity loop on the GM4108H via AS5600, serial command parsing for `{"cmd":"vel","val":<float>}`, tumbling FSM against LSM6DSOX using the charleslabs hysteresis band) and `agent/wheel_controller.py` (RPi outer attitude loop: direct-I2C BNO055 NDOF quaternion reads via `smbus2`, yaw extraction + PID, writes velocity setpoints to the Uno Q over serial). `agent/main.py` wired up to spawn both as background threads, gated entirely behind an optional `SATLAB_WHEEL_PORT` env var so existing deployed nodes without this hardware are unaffected.
+
+Corrected a real inconsistency in `docs/reaction-wheel.md`'s own architecture diagram while implementing this: it showed BNO055 routed through the Uno Q, but the Build Sequence and RPi Agent sections both specify BNO055 wired directly to the RPi's own I2C bus. Fixed the diagram to match; simplified the Uno Q firmware accordingly (it only needs AS5600 + LSM6DSOX, not BNO055).
+
+Skipped a separately-specified `agent/wheel_reader.py` module — the doc had called for it, but `serial_reader.py`'s `read_packets()` is already fully generic (port + baud only), so `main.py` just calls it directly on the second port instead of adding a near-empty wrapper file.
+
+Not yet wired: Beamwarden has no command-fetch/subscription endpoint (`BeamwardenClient` only exposes `ingest()`), so `wheel_controller.set_target()` is reachable for bench testing but nothing calls it in production yet.
+
+### Open threads
+
+- Firmware is scaffolded but not bench-tested at all — none of build sequence steps 1-6 have been run against real hardware yet.
+- Motor holder: measured, not modeled.
+- Pivot frame: modeled, bearing-pocket fit unverified (test coupon ready, not printed).
+- Full-size flywheel reprint (mount-hole fix + CFS color split) not yet done.
+
+---
+
+## 2026-08-09
+
+### Parts list reconciled against hangar inventory
+
+Several items had been sitting in "to acquire" in `docs/reaction-wheel.md` since the build plan was first drafted but had actually been on hand for a while: the GM4108H-120T motor, SimpleFOC Shield v2, AS5600 + magnet, 608ZZ bearings. Confirmed against hangar's live inventory rather than assumed. Also reflects the flywheel print completing and the motor's mounting screws (found in the motor's own screw packet: 2.78mm shaft, 5.39mm head) as on-hand hardware.
+
+Genuinely still outstanding: pivot axle, dedicated power source, M8 tuning bolts, and the not-yet-modeled pivot frame/motor holder. (`4981256`)
+
+### CFS color-split cap added, first successful flywheel print recorded
+
+Brought `cad/flywheel_gm4108h.scad` up to what was actually printed the day before:
+
+- `mount_bolt_d`/`mount_cbore_d` updated to the motor's own screw packet dims (2.78mm shaft, 5.39mm head) — previously a guessed M2 clearance fit, since no screws had turned up yet at the time.
+- New `color_segments`/`color_cap_height` params plus `pie_mask()`/`color_cap()`/`flywheel_orange()`/`flywheel_black()` modules: a thin 3mm alternating orange/black cap on the visible face, capping filament-swap count at ~60-85 instead of ~320 for a full-height split. `render_part` switch selects which body a given `openscad` invocation produces.
+- Regenerated `cad/flywheel_gm4108h.stl` (single-color reference) and added the two split STLs (`_orange`/`_black`) used for the actual CFS print.
+
+Color alternation did not visibly show up on the physical print despite clean multi-material slicing with two filament slots assigned — flagged as open, not diagnosed (bay-color mismatch vs. the toolhead swap never triggering are both still on the table). (`6ca2184`)
+
+---
+
+## 2026-08-08
+
+### Encoder mounting corrected — shaft is fixed, bell rotates
+
+Physical inspection (spin test + caliper measurements) found the previous plan wrong: the GM4108H's shaft does not rotate — it's fixed to the stationary base plate, the same face the phase wires terminate on. The rotating part is the outer bell (barrel + opposite cap, confirmed turning together as one piece), which is also the face the flywheel bolts to. The original plan to epoxy the encoder magnet to "the shaft end" would have put it on the part that never moves, giving the AS5600 nothing to read.
+
+Corrected plan: epoxy the 10×2mm diametrically magnetized disk to the rotating bell (centered over its recessed bore, same face the flywheel mounts to, or the back of the flywheel hub once mounted); mount the AS5600 on a standoff fixed to the stationary side, 1-2mm gap, reading the magnet as it sweeps past. (`c4021ea`)
+
+### Rotor bolt pattern measured off the physical motor
+
+4 holes, 30.80mm bolt-circle diameter, 47.13mm cap OD, 7.85mm recessed center bore, no shaft protrusion on that face. Fed into `cad/flywheel_gm4108h.scad`, replacing the earlier assumed pattern. (`c4021ea`)
+
+### First successful flywheel print — K2 Pro, third attempt
+
+Printed on the K2 Pro Combo (stock 0.4mm nozzle — corrected 2026-08-09, an earlier session had wrongly logged this as a 0.2mm nozzle; that was never true, no swap ever happened). First two attempts failed with `F00528` ("printing without extruding") faults, fixed by dropping speeds (outer wall ~25-30mm/s, inner wall ~35-40mm/s, infill ~50-60mm/s, 4-5 slow first layers) and moving to 0.18mm layer height — not a clog. Root cause is a volumetric flow-rate limit somewhere in this printer's hotend/extruder under default speeds; the original "fine 0.2mm nozzle" explanation for *why* was wrong along with the nozzle size itself, so treat the mechanism as unconfirmed, not the fine-nozzle story previously written here. The speed/layer-height fix that worked is still valid. Print time went from an estimated 4h4m to 10h35m.
+
+Part came out clean: correct hole count/spacing, good surface finish, no warping. Not yet physically test-fit onto the motor.
+
+### Open threads
+
+- Flywheel: physically test-fit the printed part onto the GM4108H rotor — not yet done.
+- CFS orange/black color split didn't visibly alternate despite clean slicing — not diagnosed. Low priority, cosmetic only.
+- Motor holder and pivot frame: not yet modeled (round GM4108H bolt pattern rules out reusing the charleslabs NEMA17 holder design).
+- Still outstanding hardware: pivot axle, dedicated power source, M8 tuning bolts.
+
+---
+
 ## 2026-06-22
 
 ### Print session (Jun 18) — Z offset failure + nozzle replacement

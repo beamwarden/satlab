@@ -18,15 +18,16 @@ Fallback: if the pivot frame is not yet built, the wheel + control stack runs as
 
 ### Parts to acquire
 
-**Reconciled against hangar (192.168.1.223:8788) 2026-08-09** — several items below were carried over from the original build plan as "to acquire" but have actually been on hand for a while; moved to the table below. Genuinely still outstanding:
+**Reconciled against hangar (192.168.1.223:8788), re-verified 2026-08-09** — several items below were carried over from the original build plan as "to acquire" but have actually been on hand for a while; moved to the table below. Genuinely still outstanding:
 
-| Item | Part | Qty | ~Cost |
-|---|---|---|---|
-| Pivot axle | Hollow steel shaft, ~8mm OD (outer diameter), ~100mm length | 1 | $5 |
-| Power | 3S LiPo (Lithium Polymer, 3 cells in series) 1000mAh or bench PSU (Power Supply Unit) (12V/3A), dedicated to this build — the on-hand Meshnology 3000mAh LiPoly is earmarked for the Wio Tracker L1 crosslink, not this | 1 | $15–40 |
-| M8 bolts + nuts | Adjustable flywheel tuning masses (see [3D printed parts](#3d-printed-parts)) | ~6 | — |
-| Pivot frame | 3D printed or aluminum extrusion — see [3D printed parts](#3d-printed-parts), not yet modeled | — | — |
-| Motor holder | 3D printed, matched to GM4108H's round body/bolt pattern — see [3D printed parts](#3d-printed-parts), not yet modeled | 1 | — |
+| Item | Part | Qty | ~Cost | Source |
+|---|---|---|---|---|
+| Pivot axle | [K&S #9807](https://www.amazon.com/Engineering-KS9807-Round-Alum-Tube/dp/B005WPAL7A) round **aluminum** tube, 8mm OD × 0.45mm wall × 300mm (cut to ~100mm) — OD matches the 608ZZ bearing ID; substituted for the originally-specced steel, which isn't a normal stock size at 8mm OD hollow | 1 pack (2pcs) | ~$8 | Amazon |
+| Power | Either: [OVONIC 4S 1300mAh 14.8V 100C, XT60](https://www.amazon.com/OVONIC-Battery-1300mAh-Connector-Quadcopter/dp/B0FS13VNNH) (2-pack) — 4S chosen over 3S so pack voltage (16.8V full → ~13.2V low-cutoff) stays inside the SimpleFOC Shield's recommended 12–24V `TB_PWR` input range across the whole discharge curve; a 3S pack sags to ~9.9V and spends real time under that floor. `motor.voltage_limit` in firmware caps drive voltage regardless of supply, so the extra headroom doesn't force higher RPM. If it mounts on the rotating platform per the wire-routing design (only 5V/GND/TX/RX cross the pivot axle, not motor power), factor its mass into the flywheel/moment-of-inertia budget — **or** [Pyramid PS3KX bench PSU](https://www.amazon.com/Universal-Compact-Bench-Power-Supply/dp/B0002JTD2K) (13.8V DC, 2.5A cont/3A surge, wires directly into `TB_PWR` screw terminal) for tethered bench dev during build steps 1–6. Dedicated to this build — the on-hand Meshnology 3000mAh LiPoly is earmarked for the Wio Tracker L1 crosslink, not this | 1 | varies | Amazon |
+| M8 bolts + nuts | [Bonost 1380pc metric assortment](https://www.amazon.com/Bonost-1380pcs-Nuts-Bolts-Assortment/dp/B0DSV5FFSB), grade 8.8 zinc-plated, M4–M8, bolt lengths 12–30mm — covers M8×20 tuning bolts + matching nuts in one kit | 1 kit | varies | Amazon |
+| 4S LiPo charger | [ISDT PD60S](https://www.amazon.com/ISDT-Battery-Balance-Charger-Battery%EF%BC%8CLife/dp/B08F7C1T2T), USB-C input, 60W/6A, 1–4S balance charging — found 2026-08-09 while reconciling against hangar: the on-hand **Adafruit #4410 Micro-Lipo USB-C charger (×2) is single-cell (3.7V/4.2V) only** and cannot charge the 4S pack above. New dependency introduced by the 3S→4S switch, not previously listed. Only needed if going the LiPo route; not required for the bench-PSU-only path | 1 | ~$25 | Amazon |
+| Pivot frame | 3D printed, `cad/pivot_frame.scad` — see [3D printed parts](#3d-printed-parts). Modeled and rendering clean 2026-08-09, not yet printed | — | — | — |
+| Motor holder | 3D printed, `cad/motor_holder_gm4108h.scad` — see [3D printed parts](#3d-printed-parts). Mounting bracket modeled and rendering clean 2026-08-10 (from caliper measurement, not the conflicting published specs); AS5600 standoff arm not yet included, not yet printed | 1 | — | — |
 
 ### Parts already on hand (relevant to this build)
 
@@ -37,7 +38,7 @@ Fallback: if the pivot frame is not yet built, the wheel + control stack runs as
 | AS5600 breakout + 10×2mm magnet | Rotor position feedback (see corrected mounting note above) |
 | 608ZZ bearings | ×10 on hand, only 2 needed for the pivot axle |
 | Motor mounting screws | Found in a packet with the motor, 2026-08-08: 2.78mm shaft, 5.39mm head. Thread directly into the rotor's tapped holes — no nuts needed. `cad/flywheel_gm4108h.scad`'s `mount_bolt_d`/`mount_cbore_d` are sized for these exact screws. |
-| Flywheel | **Printed 2026-08-08** on the K2 Pro Combo — see the print note above. Not yet bolted to the motor. |
+| Flywheel | **Printed 2026-08-08** on the K2 Pro Combo — see the print note above. Mount-hole fit validated via quarter-coupon test 2026-08-10 (`mount_cbore_h = 5.9mm`); full-size reprint at this setting not yet done. |
 | Arduino Uno Q | Wheel controller — mounts on platform, runs SimpleFOC inner loop |
 | Arduino Uno R3 | Sensor telemetry — unchanged, stays on base |
 | Raspberry Pi 3 (×2) | RPi agent / outer attitude loop — stays on base |
@@ -63,7 +64,7 @@ The Uno Q, SimpleFOC Shield, BNO055, and LSM6DSOX all mount on the rotating plat
 
 Route these four wires through the bore of a hollow pivot axle. Because the wires run along the axis of rotation — not offset from it — they experience zero torsion regardless of platform angle. The platform rotates around the wires; the wires do not move. No slipring required, no slack management, no wire stress at any angle.
 
-Pivot axle: ~8mm OD hollow steel shaft, seated in 608ZZ bearings at each end of the frame. Wires exit the axle bore at both ends and connect to the platform PCB/breadboard on one side and the base (RPi serial port, 5V supply) on the other.
+Pivot axle: ~8mm OD hollow aluminum tube (K&S #9807), seated in 608ZZ bearings at each end of the frame. Wires exit the axle bore at both ends and connect to the platform PCB/breadboard on one side and the base (RPi serial port, 5V supply) on the other.
 
 ---
 
@@ -157,7 +158,13 @@ Parametric OpenSCAD model for our motor: a **rim-loaded disk** (mass concentrate
 
 > **MEASURED 2026-08-08:** rotor bolt pattern confirmed off the physical motor — 4 holes, 30.80mm bolt-circle diameter, 47.13mm cap OD, 7.85mm recessed center bore (no protrusion). `mount_bolt_d`/`mount_cbore_d` are sized off the motor's own screw packet (found partway through the session): 2.78mm shaft, 5.39mm head — motor holes are tapped, not clearance-bored.
 >
-> **PRINTED SUCCESSFULLY 2026-08-08** on the K2 Pro Combo (stock 0.2mm nozzle) — third attempt, after two `F00528` ("printing without extruding") faults traced to the fine nozzle's flow-rate limit under default wall/infill speeds, not a clog. Fixed with reduced speeds (outer wall ~25-30mm/s, inner wall ~35-40mm/s, infill ~50-60mm/s, 4-5 slow first layers) and 0.18mm layer height; print time went from an estimated 4h4m to 10h35m as the real cost of running a fine-detail nozzle outside its intended use case. Part came out clean — correct hole count/spacing, good surface finish, no warping — but the orange/black color split (`flywheel_orange()`/`flywheel_black()` below) did not visibly alternate on the CFS despite slicing clean with two filament slots assigned; not yet diagnosed (bay-color mismatch vs. the swap never triggering are both still open). Not yet physically test-fit onto the motor.
+> **PRINTED SUCCESSFULLY 2026-08-08** on the K2 Pro Combo (stock 0.4mm nozzle — corrected 2026-08-09; this was wrongly logged as 0.2mm originally, no such nozzle was ever installed) — third attempt, after two `F00528` ("printing without extruding") faults, not a clog. Fixed with reduced speeds (outer wall ~25-30mm/s, inner wall ~35-40mm/s, infill ~50-60mm/s, 4-5 slow first layers) and 0.18mm layer height; print time went from an estimated 4h4m to 10h35m. Root cause of the flow limit that the speed reduction fixed is unconfirmed — the original "fine 0.2mm nozzle" explanation was wrong along with the nozzle size, so don't trust that mechanism, only the fix. Part came out clean — correct hole count/spacing, good surface finish, no warping — but the orange/black color split (`flywheel_orange()`/`flywheel_black()` below) did not visibly alternate on the CFS despite slicing clean with two filament slots assigned; not yet diagnosed (bay-color mismatch vs. the swap never triggering are both still open).
+>
+> **TEST-FIT 2026-08-09: zero thread engagement, `mount_cbore_h` corrected.** Motor screws sat flush with both the top and bottom faces of the hub when seated — because the clearance through-hole already spans the full 16mm hub regardless of counterbore depth, the screw was landing exactly at the bottom face with nothing left to bite into the motor's tapped hole. The motor's screw packet turned out to have two screw types; MEASURED shank length (below the head) on both: 12.6mm (large head, 5.39mm dia — the design target, matches `mount_cbore_d`) and 10.97mm (flush/countersunk head, not used here). Fix: solved `mount_cbore_h` directly from the 12.6mm shank for 4mm of engagement — `16 - 12.6 + 4 = 7.4mm` (up from 3mm).
+>
+> **QUARTER-COUPON TEST 2026-08-09, second pass: 4mm target still too deep.** Printed a 90°-wedge test coupon (`flywheel_gm4108h_quarter_test.stl`, `render_part="quarter"`, one full mount hole) instead of the full part to iterate fast. With the screw seated as far as it would go, a ~1mm gap remained between the hub's motor-facing face and the motor — the screw was bottoming out **in the motor's tapped hole** before its head reached the counterbore shoulder, not a head-seating problem. That means real engagement was only ~3mm, not the 4mm targeted. Backed `mount_cbore_h` off to 5.9mm (2.5mm target engagement, with margin below the ~3mm observed limit since only one of the 4 holes has been tested and tapped-hole depth could vary slightly hole to hole).
+>
+> **QUARTER-COUPON TEST 2026-08-10, third pass: PASSED.** Reprinted the same test coupon at `mount_cbore_h = 5.9mm` — flush seating against the motor, no gap. Cleared to print the full flywheel at this setting.
 
 Render to STL:
 ```bash
@@ -170,15 +177,50 @@ openscad -D 'render_part="orange"' -o cad/flywheel_gm4108h_orange.stl cad/flywhe
 openscad -D 'render_part="black"' -o cad/flywheel_gm4108h_black.stl cad/flywheel_gm4108h.scad
 ```
 
-Print notes: PLA is fine for the demonstrator (PETG if it sits near motor heat); 50–60% infill or solid rim (6+ perimeters) to keep mass in the rim; print web-side down, counterbores up — no supports. **On a fine-detail nozzle (0.2mm or similar), cut wall/infill speeds well below default and expect a much longer print** — see the 2026-08-08 note above.
+**COLOR-SPLIT DIAGNOSIS 2026-08-10.** The alternating orange/black cap didn't visibly show up on the 2026-08-08 physical print despite slicing clean with two filament slots assigned. Reviewed the `.scad` logic:
 
-### Motor holder (to design)
+- Fixed a real bug in `color_cap()`: it passed `wheel_od` (120, the *diameter*) into `pie_mask()`'s radius argument instead of `wheel_od/2`. Harmless in practice — the `intersection()` with `flywheel()` in `flywheel_orange()` clips it back to the real 60mm radius regardless — so this wasn't the cause of the print failure, just sloppy. Fixed either way.
+- The more likely real cause is a **slicer import problem, not a geometry problem**: the two STLs are exported at fixed absolute coordinates from OpenSCAD (black spans the full 0–16mm height minus the orange sliver; orange occupies only the top 13–16mm within specific wedges) and need to land in the slicer at those *exact same* relative positions to combine into one two-color part. Two things can break that silently: (1) auto-arrange spreading the two objects apart in X/Y instead of stacking them at the same origin, and (2) a "drop to bed" import behavior repositioning each object independently in Z — since `flywheel_orange()`'s native Z-range is 13–16mm, if the slicer drops it to sit on the bed at Z=0 instead of preserving its designed height, it ends up buried inside the black body's footprint instead of capping it. Either failure mode would still slice "clean" (no errors) while silently producing two separate single-color objects instead of one combined part — consistent with what was observed. Not yet confirmed which (if either) actually happened; check both before the next attempt.
 
-The GM4108H needs a holder matched to its round body and bolt pattern — the charleslabs NEMA 17 holder cannot be reused. Hold the motor coaxial with the rotating platform, and provide a fixed mounting point for the AS5600 standoff near the rotating bell's flywheel face (not the shaft — see the encoder mounting correction above), seated against the platform plate. Not yet modeled.
+**Fast color-swap test coupon** (`quarter_orange`/`quarter_black`, same trick as the mount-hole `quarter` coupon — small and fast instead of another ~10h bet): a 90° wedge straddling one real color boundary, black body kept as a solid full-height chunk (mirrors what `flywheel_black()` actually is) rather than a disconnected sliver, so it exercises the same import/alignment risk as the full print.
+```bash
+openscad -D 'render_part="quarter_orange"' -o cad/flywheel_gm4108h_quarter_orange.stl cad/flywheel_gm4108h.scad
+openscad -D 'render_part="quarter_black"' -o cad/flywheel_gm4108h_quarter_black.stl cad/flywheel_gm4108h.scad
+```
+Both render clean (manifold, no errors) 2026-08-10.
 
-### Pivot frame (to design)
+**COLOR-SWAP TEST 2026-08-10: PASSED.** Imported both STLs together in Creality Print; it detected the shared coordinate space and offered "load as a single object with multiple parts" — confirming the alignment concern above never actually materialized. Assigned the orange/black parts to separate CFS slots under the Objects tab. Printed clean: sharp, correctly-registered orange/black transition, no bleed. Root cause was the slicer import workflow (importing as two independent objects rather than one multi-part object), not the `.scad` geometry. **Full-size CFS flywheel reprint with this same import method is now cleared** — no longer blocked on the unresolved color issue from the 2026-08-08 print.
 
-Seats the ~8 mm hollow steel axle in two 608ZZ bearings (608 ID = 8 mm, matches) with the four platform wires routed through the axle bore. Print the bearing seats as tight press-fits or add M3 captive-nut clamps. Not yet modeled.
+Print notes: PLA is fine for the demonstrator (PETG if it sits near motor heat); 50–60% infill or solid rim (6+ perimeters) to keep mass in the rim; print web-side down, counterbores up — no supports. **This printer needs wall/infill speeds well below slicer defaults (see the 2026-08-08 note above) — cause unconfirmed, not specifically a fine-nozzle issue** (this is a stock 0.4mm nozzle; an earlier version of this doc wrongly attributed the fix to a 0.2mm nozzle that was never installed).
+
+### Motor holder — mounting bracket modeled 2026-08-10, `cad/motor_holder_gm4108h.scad`
+
+The GM4108H needs a holder matched to its round body and bolt pattern — the charleslabs NEMA 17 holder cannot be reused. Published specs for this motor's stationary base-plate mounting conflicted between sources (one datasheet gave 12mm hole spacing / 10mm shaft OD, a SimpleFOC community thread modifying CAD for this same motor gave 27mm hole spacing / 15mm shaft OD) — same failure mode that cost two wasted flywheel print attempts, so this was measured off the physical unit instead of guessed:
+- Base OD 47.05mm (matches the separately-measured rotor bell OD of 47.13mm)
+- 4 mounting holes, clean square pattern, 26.32mm side, 2.3mm diameter
+- Center hex lock-nut: 12.8mm across-flats, ~1mm proud of the base plate
+- Base plate thickness ~4.59mm
+
+Design: bolts to the motor's **stationary** base plate (wire-exit face, opposite the rotating bell/flywheel end) and sits flat on the `platform()` deck with the motor standing upright — base plate down, flywheel spinning in a horizontal plane well above the deck. No standoff height needed beyond the motor's own body length. Built as an open skeletal cross (center hub + 4 arms to corner bosses) rather than a solid disk, so the 3-wire phase harness can exit in whatever direction it actually comes off the base plate without needing that angle measured. Two mounting tabs (M3 clearance) for zip-tie/screw attachment to the platform's generic tie-down holes.
+
+Render to STL:
+```bash
+openscad -o cad/motor_holder_gm4108h.stl cad/motor_holder_gm4108h.scad
+```
+Renders clean (manifold, no errors) 2026-08-10. **Not yet printed or test-fit.**
+
+**Scope note — AS5600 standoff not yet included.** The doc's original design intent also has this holder carrying a fixed standoff for the AS5600, positioned near the rotating bell's flywheel face — the *opposite* end of the motor from where this bracket bolts on. That needs the motor's axial body length, which hasn't been calipered (only the published 32.3mm datasheet figure — and this project has been burned twice already trusting this motor's published specs over physical measurement). This pass covers the mounting bracket only; measure motor length before extending it.
+
+### Pivot frame — modeled 2026-08-09, `cad/pivot_frame.scad`
+
+Two printable bodies, selected via `render_part`: `base` (fixed foot, anchors the axle) and `platform` (rotating disk). Kinematics: **the axle is stationary**; the platform spins freely around it on two 608ZZ bearings stacked in its hub barrel (`hub_height` = 32mm separation for tip stability), matching the "wires don't move, platform rotates around them" design in [Platform wire routing](#platform-wire-routing) above. The base gets a 608ZZ pocket too — not for rotation, just as a precision-bore anchor bushing for the axle, reusing one known-good bore diameter instead of guessing a plain hole tolerance.
+
+```bash
+openscad -D 'render_part="base"' -o cad/pivot_frame_base.stl cad/pivot_frame.scad
+openscad -D 'render_part="platform"' -o cad/pivot_frame_platform.stl cad/pivot_frame.scad
+```
+
+Both render clean (manifold, no errors) as of 2026-08-09. **Not yet physically test-fit or printed.** `bearing_fit_clearance` (currently -0.15mm) is a first-pass FDM press-fit guess, not measured on this printer — print a short test sleeve of the hub/pocket geometry before committing to a full platform print, same lesson as the flywheel's speed-tuning fix. Also open: whether the press-fit alone holds the axle rigid in the base pocket, or whether it needs a drop of thread-lock/epoxy once fit is validated. Perimeter tie-down holes on the platform are generic M3 zip-tie/adhesive points — Uno Q / BNO055 / LSM6DSOX exact footprints aren't confirmed yet, so nothing is bolted to a specific hole pattern for those.
 
 ---
 
@@ -265,7 +307,7 @@ SATLAB_WHEEL_PORT    Serial device for Uno Q (e.g. /dev/ttyACM1)
 ## Open questions
 
 - **Flywheel dimensions:** Moment of inertia target depends on platform mass and desired slew rate. Start with charleslabs approach (adjustable hardware placement) and measure empirically. Parametric model in `cad/flywheel_gm4108h.scad` (rim-loaded, M8 tuning pockets); GM4108H rotor bolt pattern still needs measuring.
-- **Power architecture:** Bench PSU (12V/3A) preferred during development; 3S LiPo for untethered operation (confirmed compatible). Determine whether Uno Q and SimpleFOC Shield share a supply rail with the rest of the system or run isolated.
+- **Power architecture:** Bench PSU (Pyramid PS3KX, 13.8V) preferred during development; 4S LiPo (14.8V nominal, chosen over 3S to stay inside the shield's 12–24V range across the discharge curve) for untethered operation once the pivot frame is built. Determine whether Uno Q and SimpleFOC Shield share a supply rail with the rest of the system or run isolated.
 - **Max wheel speed:** ~325 RPM at 12V (no-load). Load reduces this; factor into angular momentum budget when sizing the flywheel.
 - **I2C bus:** BNO055 on RPi I2C. AS5600 on Uno Q I2C. No conflict. Confirm LSM6DSOX address (0x6A or 0x6B) does not collide with AS5600 (0x36) if both end up on the same Uno Q bus.
 - **Outer loop rate:** 20Hz is a starting point. May need adjustment based on BNO055 output data rate and serial latency.

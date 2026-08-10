@@ -53,7 +53,7 @@ mount_bolt_circle_d = 30.80; // MEASURED: GM4108H rotor mounting bolt-circle dia
 mount_bolt_count    = 4;     // MEASURED: number of rotor mounting holes
 mount_bolt_d        = 3.1;   // MEASURED: actual screw (from the motor's hardware packet) has a 2.78mm shaft -- motor holes are tapped, screws thread into the motor, not through-bolted. 3.1mm gives ~0.3mm clearance for a free fit + FDM shrinkage.
 mount_cbore_d       = 6.0;   // MEASURED: screw head is 5.39mm -- 6.0mm gives clearance for the head to sit flush/below the web.
-mount_cbore_h       = 3;     // counterbore depth (mm)
+mount_cbore_h       = 5.9;   // counterbore depth (mm). CORRECTED 2026-08-09, second pass: the 7.4mm depth (targeting 4mm engagement) test-fit with a ~1mm gap between the hub's motor-facing face and the motor even with the screw seated as far as it would go -- the screw bottomed out IN THE MOTOR'S TAPPED HOLE before its head reached the counterbore shoulder, meaning real engagement was only ~3mm (4mm target minus the ~1mm gap), not a counterbore/head-seating problem. Backed off to a 2.5mm target with margin below that ~3mm observed limit (only one of the 4 holes has been test-fit, so leaving room for per-hole variance in the tapped metal): mount_cbore_h = rim_height - shank_length + engagement = 16 - 12.6 + 2.5 = 5.9. Not yet re-test-fit at this depth.
 
 /* [Adjustable tuning masses] */
 // A ring of pockets sized for M8 hardware (bolt + nut), exactly like the
@@ -150,11 +150,15 @@ module pie_mask(a0, a1, r, h, z0, steps = 8) {
 
 module color_cap(parity) {
     // parity 0 = wedge indices 0,2,4... ; parity 1 = wedge indices 1,3,5...
+    // NOTE: radius arg is wheel_od/2 (wheel_od is diameter) -- previously
+    // passed wheel_od directly (2x too large). Harmless in practice since
+    // the intersection() in flywheel_orange() below clips it back to the
+    // real flywheel radius either way, but fixed 2026-08-10 for correctness.
     union()
         for (i = [0 : color_segments - 1])
             if (i % 2 == parity)
                 pie_mask(i * 360 / color_segments, (i + 1) * 360 / color_segments,
-                         wheel_od, color_cap_height + 1, rim_height - color_cap_height);
+                         wheel_od/2, color_cap_height + 1, rim_height - color_cap_height);
 }
 
 module flywheel_orange() {
@@ -171,15 +175,65 @@ module flywheel_black() {
     }
 }
 
+// Quarter-hub test coupon: a 90deg wedge centered on mount hole 0 (ang=0 in
+// mount_holes()), so it carries one full through-hole + counterbore intact
+// for a real screw dry-fit -- fast iteration on mount_cbore_h without a full
+// ~10h print. Wedge is wide enough (90deg > 360/mount_bolt_count = 90deg
+// exactly) to just contain the one hole; centered so there's margin on both
+// sides of it.
+wedge_width = 90;
+
+module quarter_hub() {
+    intersection() {
+        flywheel();
+        pie_mask(-wedge_width/2, wedge_width/2, wheel_od/2, rim_height + 2, -1);
+    }
+}
+
+// Color-swap test coupon: intersects the same quarter-wedge mask with the
+// orange/black split instead of the full flywheel. wedge_width=90 straddles
+// the color boundary at angle 0 (wedge i=3, black, spans 270-360; wedge i=0,
+// orange, spans 0-90), so this small pair carries one real color transition
+// -- enough to test whether the CFS toolhead swap actually triggers and
+// shows up, without betting another ~10h print on it. Import both STLs at
+// the SAME origin (0,0) in the slicer, same as the full orange/black pair --
+// if the slicer's auto-arrange moves them apart, you'll get two separate
+// single-color parts instead of one two-color part, and this test won't
+// tell you anything useful.
+module quarter_orange() {
+    intersection() {
+        quarter_hub();
+        color_cap(0);
+    }
+}
+
+// Mirrors flywheel_black()'s own definition (everything else, minus the
+// orange sliver) rather than just the opposite-parity cap alone -- this
+// keeps the coupon's black body a solid full-height chunk like the real
+// print's black object, not a second disconnected thin shell, and exercises
+// the same "mostly-black-then-swap-near-the-top" toolpath the full print
+// actually needs.
+module quarter_black() {
+    difference() {
+        quarter_hub();
+        quarter_orange();
+    }
+}
+
 /* [Render selection] */
-// "full" | "orange" | "black" -- which body this render produces. Render
-// orange and black separately (openscad -D 'render_part="orange"' ...) for
-// the two CFS multi-material STLs; "full" (default) renders the single-color
-// part as before.
+// "full" | "orange" | "black" | "quarter" | "quarter_orange" | "quarter_black"
+// -- which body this render produces. Render orange and black separately
+// (openscad -D 'render_part="orange"' ...) for the two CFS multi-material
+// STLs; "quarter" for the fast mount-hole test coupon; "quarter_orange" /
+// "quarter_black" for the fast color-swap test coupon pair; "full" (default)
+// renders the single-color part as before.
 render_part = "full";
 
 if (render_part == "orange") flywheel_orange();
 else if (render_part == "black") flywheel_black();
+else if (render_part == "quarter") quarter_hub();
+else if (render_part == "quarter_orange") quarter_orange();
+else if (render_part == "quarter_black") quarter_black();
 else flywheel();
 
 // ---------------------------------------------------------------------------
