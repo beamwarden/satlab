@@ -36,7 +36,7 @@ Fallback: if the pivot frame is not yet built, the wheel + control stack runs as
 | iPower GM4108H-120T BLDC gimbal motor | Reaction wheel drive |
 | SimpleFOC Shield v2 (IR2104/INA240) | FOC driver, stacks on Uno Q |
 | AS5600 breakout + 10×2mm magnet | Rotor position feedback (see corrected mounting note above) |
-| 608ZZ bearings | ×10 on hand, only 2 needed for the pivot axle |
+| 608ZZ bearings | ×10 on hand, 3 needed for the pivot frame (2 in the platform hub for rotation, 1 in the base as an anchor bushing — see `cad/pivot_frame.scad`) |
 | Motor mounting screws | Found in a packet with the motor, 2026-08-08: 2.78mm shaft, 5.39mm head. Thread directly into the rotor's tapped holes — no nuts needed. `cad/flywheel_gm4108h.scad`'s `mount_bolt_d`/`mount_cbore_d` are sized for these exact screws. |
 | Flywheel | **Printed 2026-08-08** on the K2 Pro Combo — see the print note above. Mount-hole fit validated via quarter-coupon test 2026-08-10 (`mount_cbore_h = 5.9mm`); full-size reprint at this setting not yet done. |
 | Arduino Uno Q | Wheel controller — mounts on platform, runs SimpleFOC inner loop |
@@ -220,7 +220,11 @@ openscad -D 'render_part="base"' -o cad/pivot_frame_base.stl cad/pivot_frame.sca
 openscad -D 'render_part="platform"' -o cad/pivot_frame_platform.stl cad/pivot_frame.scad
 ```
 
-Both render clean (manifold, no errors) as of 2026-08-09. **Not yet physically test-fit or printed.** `bearing_fit_clearance` (currently -0.15mm) is a first-pass FDM press-fit guess, not measured on this printer — print a short test sleeve of the hub/pocket geometry before committing to a full platform print, same lesson as the flywheel's speed-tuning fix. Also open: whether the press-fit alone holds the axle rigid in the base pocket, or whether it needs a drop of thread-lock/epoxy once fit is validated. Perimeter tie-down holes on the platform are generic M3 zip-tie/adhesive points — Uno Q / BNO055 / LSM6DSOX exact footprints aren't confirmed yet, so nothing is bolted to a specific hole pattern for those.
+Both render clean (manifold, no errors) as of 2026-08-09. Also open: whether the press-fit alone holds the axle rigid in the base pocket, or whether it needs a drop of thread-lock/epoxy once fit is validated. Perimeter tie-down holes on the platform are generic M3 zip-tie/adhesive points — Uno Q / BNO055 / LSM6DSOX exact footprints aren't confirmed yet, so nothing is bolted to a specific hole pattern for those.
+
+**BEARING TEST 2026-08-10: too tight, `bearing_fit_clearance` corrected.** Printed `pivot_frame_bearing_test.stl` at the original -0.15mm guess (designed pocket 21.85mm). Measured: bearing OD 22.00mm (matches nominal), printed pocket 21.64mm — 0.36mm of interference, not the intended 0.15mm. This printer shrinks holes ~0.21mm beyond the designed value, more than first assumed; the bearing would not press in without cracking the part at this size. Corrected `bearing_fit_clearance` to +0.06mm (designs the pocket 0.06mm *over* nominal bearing OD) to compensate for the observed shrinkage and land back near the original 21.85mm light-press-fit target. Re-rendered clean 2026-08-10.
+
+**BEARING TEST 2026-08-10, second pass: PASSED.** Reprinted the coupon at `bearing_fit_clearance = +0.06mm` — bearing seated flush, no force issues, no cracking. **`pivot_frame_base.stl` and `pivot_frame_platform.stl` are cleared to print at this setting.**
 
 ---
 

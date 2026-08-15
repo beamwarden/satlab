@@ -39,7 +39,7 @@ axle_od               = 8;     // K&S #9807 tube OD (mm) -- also matches 608ZZ b
 axle_clear_d          = 8.4;   // running clearance bore for sections where the axle passes through but isn't press-fit (mm)
 bearing_od            = 22;    // 608ZZ outer diameter (mm)
 bearing_width         = 7;     // 608ZZ width (mm)
-bearing_fit_clearance = -0.15; // undersize applied to the bearing pocket bore for an FDM press-fit (mm). Negative = pocket printed smaller than bearing_od. Verify on a test coupon first -- printers/nozzles vary (see the flywheel's F00528 note on this printer's quirks); loosen toward 0 if the bearing won't seat, tighten if it spins loose in the pocket.
+bearing_fit_clearance = 0.06;  // CORRECTED 2026-08-10 from a printed test coupon: bearing OD measured 22.00mm (matches nominal), but the pocket designed at 21.85mm (the original -0.15 guess) printed at 21.64mm -- this printer shrinks holes ~0.21mm beyond the designed value, more than first assumed. +0.06 designs the pocket 0.06mm OVER bearing_od so the actual result should land near the original 21.85mm light-press-fit target once shrinkage is accounted for. Re-verify with another test coupon before trusting it for the full base/platform prints.
 bearing_pocket_d      = bearing_od + bearing_fit_clearance;
 
 /* [Base] */

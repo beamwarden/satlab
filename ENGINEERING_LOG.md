@@ -5,6 +5,25 @@ Most recent entry first.
 
 ---
 
+## 2026-08-15
+
+### Pivot frame bearing fit resolved; full base/platform cleared to print
+
+First bearing-pocket test coupon (`bearing_fit_clearance = -0.15mm`, designed pocket 21.85mm) came out too tight — measured bearing OD 22.00mm (matches 608ZZ nominal) against a printed pocket of 21.64mm, 0.36mm of interference instead of the intended 0.15mm. This printer shrinks holes ~0.21mm beyond the designed value, more than the flywheel's mount-hole correction had assumed. Corrected `bearing_fit_clearance` to +0.06mm (pocket designed *over* nominal bearing OD to compensate for the shrinkage) and reprinted the coupon: bearing seated flush, no force issues, no cracking. **`pivot_frame_base.stl` and `pivot_frame_platform.stl` regenerated at the corrected value and cleared to print.**
+
+Also caught and fixed a stale doc line: "608ZZ bearings ×10 on hand, only 2 needed for the pivot axle" predated the actual `pivot_frame.scad` design and was never reconciled. The real design uses 3: two in the platform hub (the ones that actually rotate) and one in the base (a fixed anchor bushing for the axle, not load-bearing rotation — the design notes say a plain drilled hole would work identically there, but reusing the same bore diameter was simpler than sourcing an alternative).
+
+`pivot_frame_platform.stl` throws a "floating cantilever" warning in Creality Print when sliced — expected, not a defect. The hub's internal bore narrows to the 8.4mm axle-clearance section in the middle then widens back out to the bearing pocket and wire cavity near the top; that sudden widening needs a bridge/support, already flagged in the file's own print notes. Fix is "enable support" for the object, not re-orienting — flipping the part would put the wide deck cantilevered over a thin hub column at print start, a worse overhang than the internal bridge.
+
+### Open threads
+
+- Full `pivot_frame_base.stl` / `pivot_frame_platform.stl` prints not yet done (cleared, but not run).
+- Motor holder not yet printed or test-fit.
+- Firmware (`wheel_controller.ino`, `wheel_controller.py`) still entirely unbench-tested against real hardware.
+- Flywheel + motor holder assembly (bolting flywheel to motor, motor holder to motor + platform) not yet attempted.
+
+---
+
 ## 2026-08-10
 
 ### Flywheel mount-hole engagement fixed and validated via fast test coupons
