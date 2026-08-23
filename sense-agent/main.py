@@ -1,5 +1,24 @@
 from __future__ import annotations
 
+"""
+satlab Sense HAT agent (beamrider-0004).
+
+Required environment variables:
+    BEAMWARDEN_URL   Base URL of Beamwarden (e.g. http://192.168.1.10:8000)
+    BEAMWARDEN_TOKEN Beamrider bearer token from Beamwarden
+
+Optional (LoRa cross-link, see docs/crosslink-setup.md and crosslink.py):
+    SATLAB_CROSSLINK_PORT Serial device for the Wio Tracker (by-id path). If
+                          unset, the cross-link is skipped entirely -- nodes
+                          without this hardware are unaffected.
+    SATLAB_PEER_NODE_ID   Meshtastic node ID of the peer node, e.g. "!a1b2c3d4".
+                          Required together with SATLAB_CROSSLINK_PORT.
+
+This node has no HealthVector of its own (unlike agent/main.py's
+beamrider-0003) -- the cross-link here is receive-only: it logs the peer's
+incoming health vector but never calls send_health_vector.
+"""
+
 import logging
 import os
 import signal
@@ -7,6 +26,7 @@ import sys
 import time
 
 from beamwarden import BeamwardenClient
+from crosslink import CrosslinkTransceiver
 from led_display import Health, LedDisplay
 from sense_reader import SenseReader
 
@@ -36,6 +56,21 @@ def main() -> None:
     reader  = SenseReader()
     display = LedDisplay(reader.sense)
 
+    crosslink_port = os.environ.get("SATLAB_CROSSLINK_PORT")
+    peer_node_id   = os.environ.get("SATLAB_PEER_NODE_ID")
+    crosslink: CrosslinkTransceiver | None = None
+    if crosslink_port and peer_node_id:
+        crosslink = CrosslinkTransceiver(crosslink_port, peer_node_id)
+        crosslink.on_peer_vector(lambda v: logger.info(
+            "peer health vector: seq=%s state=%s capability=%.2f tasking=%s",
+            v["sequence"], v["state"], v["mission_capability"], v["available_for_tasking"],
+        ))
+    elif crosslink_port or peer_node_id:
+        logger.warning(
+            "SATLAB_CROSSLINK_PORT and SATLAB_PEER_NODE_ID must both be set "
+            "to enable the cross-link -- cross-link disabled"
+        )
+
     shutdown = False
 
     def _on_signal(sig, frame):  # noqa: ANN001
@@ -46,7 +81,10 @@ def main() -> None:
     signal.signal(signal.SIGTERM, _on_signal)
     signal.signal(signal.SIGINT,  _on_signal)
 
-    logger.info("sense-agent starting (beamrider-0004)")
+    logger.info(
+        "sense-agent starting (beamrider-0004) crosslink=%s",
+        peer_node_id if crosslink else "disabled",
+    )
     display.set_health(Health.FAULT)  # amber until first successful cycle
 
     while not shutdown:
@@ -105,6 +143,8 @@ def main() -> None:
         time.sleep(READ_INTERVAL_S)
 
     display.off()
+    if crosslink:
+        crosslink.close()
     logger.info("sense-agent stopped")
 
 
