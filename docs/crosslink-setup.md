@@ -36,6 +36,25 @@ format is the hex representation of that number.
 > `tty.usbmodem*` exists but hangs indefinitely. Run `ls /dev/cu.usbmodem*` to find the
 > exact port name after plugging in the device.
 
+> **PEP 668 note (macOS with Homebrew Python):** `pip install meshtastic` will
+> refuse with "externally-managed-environment". Don't `--break-system-packages`
+> against the system interpreter for a laptop-side CLI tool — use a throwaway
+> venv instead: `python3 -m venv ~/.venvs/meshtastic-cli && ~/.venvs/meshtastic-cli/bin/pip install meshtastic`,
+> then invoke as `~/.venvs/meshtastic-cli/bin/meshtastic ...`.
+
+> **Board has a physical power switch.** Easy to miss: plugging in USB alone
+> is not enough if the switch is off. No `/dev/cu.usbmodem*` device and an
+> empty `system_profiler SPUSBDataType` (not even a hint of the accessory)
+> means check the switch before suspecting the cable.
+
+- [x] Connect Wio Tracker to laptop via USB-C -- **done 2026-08-23, via CLI**
+- [x] Confirm firmware version and node ID
+      -- Unit A: `!c107ec87` (firmware 2.7.15.567b8ea), Unit B: `!fe54bdf2`
+      (firmware 2.6.10.9ce4455) -- **firmware versions differ slightly
+      between the two units; config export/import and channel-URL sharing
+      both worked fine across the gap, not observed to matter**
+- [x] Repeat for second unit
+
 ---
 
 ## Phase 2 — Configure each Wio Tracker
@@ -74,17 +93,33 @@ meshtastic --port <PORT> --ch-index 0 --ch-set name satlab
 meshtastic --port <PORT> --ch-index 0 --ch-set psk random
 ```
 
-**Step 2d — Export the config from Unit A and apply to Unit B:**
+**Step 2d — DO NOT use `--export-config`/`--import-config` for this.** That was
+the original plan here and it's wrong: a full config export includes the
+`security` section (per-node PKI keypair), so importing it onto Unit B
+**clones Unit A's device identity keys onto Unit B**. Both units then present
+the same public key, and direct (non-broadcast) messages between them fail
+with `PKI_UNKNOWN_PUBKEY` / `MAX_RETRANSMIT` even at zero range -- confirmed
+2026-08-23, cost about 20 minutes to root-cause via the `--nodes` table
+showing an identical `Pubkey` column for both units' self-entries.
+
+Use the channel URL instead -- it carries only the channel name/PSK/LoRa
+config, not device identity:
 ```bash
-# On Unit A — export full config to a YAML file
-meshtastic --port <PORT> --export-config > wio-a.yaml
+# On Unit A — set the channel, then grab its shareable URL
+meshtastic --port <PORT> --ch-index 0 --ch-set name satlab
+meshtastic --port <PORT> --ch-index 0 --ch-set psk random
+meshtastic --port <PORT> --info   # "Primary channel URL:" line has the URL
 
-# Plug in Unit B, import the same config
-meshtastic --port <PORT> --import-config wio-a.yaml
+# On Unit B — apply the same URL (sets channel + LoRa config, not identity)
+meshtastic --port <PORT> --ch-set-url "<URL from Unit A>"
 ```
-This is the most reliable way to guarantee both units share the identical PSK.
+If Unit B already had a cloned identity from the old `--import-config`
+approach, recover with `meshtastic --port <PORT> --factory-reset-device`
+(wipes config *and* PKI keys, not just `--factory-reset`/`--factory-reset-config`
+which explicitly preserves them) before reapplying region, channel URL, and
+owner name.
 
-**Step 2e — Set node names (do separately per unit after import):**
+**Step 2e — Set node names (do separately per unit):**
 ```bash
 # Unit A
 meshtastic --port <PORT> --set-owner "beamrider-0003" --set-owner-short "BR03"
@@ -94,11 +129,24 @@ meshtastic --port <PORT> --set-owner "beamrider-0004" --set-owner-short "BR04"
 ```
 
 **Step 2f — Verify mesh connectivity before moving to the RPi:**
-- [ ] With both units powered (USB or battery), open `client.meshtastic.org`
-      connected to Unit A
-- [ ] Confirm Unit B appears in the node list within ~60 s
-- [ ] Send a test message to Unit B via the UI and confirm receipt
-- [ ] Record both node IDs (`!xxxxxxxx`) — needed for agent env vars
+- [x] With both units powered (USB or battery), confirm Unit B appears in
+      Unit A's node list -- **done 2026-08-23 via CLI (`--nodes`), not the
+      browser UI. Took two tries: see the close-range note below.**
+- [x] Send a test message to Unit B and confirm receipt -- **`--sendtext
+      --dest !fe54bdf2 --ack` from Unit A got a real ACK; confirmed visually
+      on both units' screens too**
+- [x] Record both node IDs — Unit A (beamrider-0003) `!c107ec87`, Unit B
+      (beamrider-0004) `!fe54bdf2`
+
+> **Close-range gotcha:** the very first connectivity attempt (both units a
+> few inches apart on the same desk, same USB hub) failed with
+> `MAX_RETRANSMIT` and neither unit's `--nodes` table saw the other at all --
+> this was on top of the PKI collision above, so two independent problems
+> stacked. Moving the units a few feet apart and confirming both antennas
+> were actually seated fixed the RF side; a LoRa front-end can desense at
+> extreme close range the same way it can fail at extreme distance. If
+> `--nodes` shows nothing after ~30s and both antennas are attached, try
+> distance before assuming a config problem.
 
 ---
 
@@ -132,17 +180,20 @@ meshtastic --port <PORT> --set-owner "beamrider-0004" --set-owner-short "BR04"
 
 ## Phase 4 — Cross-link connectivity test (both nodes powered, in range)
 
-- [ ] From RPi-A, send a test message to RPi-B's node ID:
-      ```python
-      import meshtastic.serial_interface
-      iface = meshtastic.serial_interface.SerialInterface(CROSSLINK_PORT)
-      iface.sendText("ping", destinationId=PEER_NODE_ID)
-      iface.close()
-      ```
-- [ ] Confirm receipt on RPi-B via the receive callback or Meshtastic app
+**Done early, 2026-08-23, from the Mac via CLI rather than the RPis (Phase 3
+hasn't happened yet -- both units were still on the laptop for Phase 1/2).
+Re-verify after the physical move to the RPis in Phase 3; USB power/cabling
+differences on the Pi are unlikely to matter but haven't been checked.**
+
+- [x] Send a test message to the peer node ID -- `meshtastic --dest !fe54bdf2
+      --sendtext ping --ack`, got a real ACK (see the PKI/close-range notes
+      in Phase 2 for what it took to get here)
+- [x] Confirm receipt on the peer -- confirmed visually on both units' screens
 - [ ] Measure round-trip latency — expect 1–5 s at LongFast preset indoors
-- [ ] Confirm bidirectional (send from RPi-B to RPi-A)
-- [ ] Stress test: send 10 messages in succession, confirm delivery rate
+      (not measured precisely; CLI round trip felt sub-5s but wasn't timed)
+- [x] Confirm bidirectional (send from B to A) -- ACK'd cleanly
+- [x] Stress test: send 10 messages in succession, confirm delivery rate --
+      **10/10 ACKed**
 
 ---
 
