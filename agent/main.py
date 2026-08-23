@@ -13,6 +13,13 @@ Required environment variables:
     BEAMWARDEN_TOKEN      Beamrider bearer token from Beamwarden
     SATLAB_NORAD_ID       NORAD ID to propagate (default: 25544 — ISS)
     SATLAB_NODE_ID        Stable node identity UUID (generated at startup if absent)
+
+Optional (LoRa cross-link, see docs/crosslink-setup.md and crosslink.py):
+    SATLAB_CROSSLINK_PORT Serial device for the Wio Tracker (by-id path). If
+                          unset, the cross-link is skipped entirely -- nodes
+                          without this hardware are unaffected.
+    SATLAB_PEER_NODE_ID   Meshtastic node ID of the peer node, e.g. "!a1b2c3d4".
+                          Required together with SATLAB_CROSSLINK_PORT.
 """
 
 import logging
@@ -24,6 +31,7 @@ from datetime import datetime, timezone
 
 from beamwarden import BeamwardenClient
 from bench import Benchmarker
+from crosslink import CrosslinkTransceiver
 from health import HealthVector, NodeState
 from orbit import OrbitalPropagator
 from serial_reader import read_packets
@@ -69,16 +77,34 @@ def main() -> None:
     vector     = HealthVector()
     bench      = Benchmarker()
 
+    crosslink_port = os.environ.get("SATLAB_CROSSLINK_PORT")
+    peer_node_id   = os.environ.get("SATLAB_PEER_NODE_ID")
+    crosslink: CrosslinkTransceiver | None = None
+    if crosslink_port and peer_node_id:
+        crosslink = CrosslinkTransceiver(crosslink_port, peer_node_id)
+        crosslink.on_peer_vector(lambda v: logger.info(
+            "peer health vector: seq=%s state=%s capability=%.2f tasking=%s",
+            v["sequence"], v["state"], v["mission_capability"], v["available_for_tasking"],
+        ))
+    elif crosslink_port or peer_node_id:
+        logger.warning(
+            "SATLAB_CROSSLINK_PORT and SATLAB_PEER_NODE_ID must both be set "
+            "to enable the cross-link -- cross-link disabled"
+        )
+
     def _on_exit(signum, frame):
         bench.log_summary()
+        if crosslink:
+            crosslink.close()
         sys.exit(0)
 
     signal.signal(signal.SIGINT,  _on_exit)
     signal.signal(signal.SIGTERM, _on_exit)
 
     logger.info(
-        "satlab agent starting — port=%s beamwarden=%s norad=%s node_id=%s",
+        "satlab agent starting — port=%s beamwarden=%s norad=%s node_id=%s crosslink=%s",
         serial_port, bw_url, norad_id, vector.node_id,
+        peer_node_id if crosslink else "disabled",
     )
 
     last_orbit_push: float = 0.0
@@ -146,11 +172,14 @@ def main() -> None:
         )
         if mono - last_hv_push >= hv_interval:
             vector.refresh()
+            hv_payload = vector.to_payload(now)
             client.ingest(
                 sensor_name="health_vector",
                 recorded_at=now,
-                payload=vector.to_payload(now),
+                payload=hv_payload,
             )
+            if crosslink:
+                crosslink.send_health_vector(hv_payload)
 
             bench_reading = bench.sample()
             client.ingest(
