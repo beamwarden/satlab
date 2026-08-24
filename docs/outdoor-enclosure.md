@@ -1,0 +1,248 @@
+# Outdoor Enclosure — RPi + Wio Tracker L1 LoRa Range Test Node
+
+3D-printed weatherproof enclosure for a Raspberry Pi paired with a Meshnology
+Wio Tracker L1 (SX1262 LoRa + nRF52840), built to get one satlab LoRa node
+outside for real free-space-path-loss range/propagation testing. Every LoRa
+test so far (`docs/crosslink-setup.md`) has been indoor bench range — both
+Wio Tracker units a few feet apart on the same desk. This is the physical
+enclosure for iteration 2's "outdoor node," a new subsystem with no prior
+build in this repo.
+
+CAD: `cad/outdoor_enclosure.scad`. STLs committed alongside per this repo's
+existing CAD convention (see `cad/pivot_frame.scad`'s STL siblings on
+`feature/reaction-wheel-cad`).
+
+---
+
+## CAD style heritage
+
+Follows the parametric/documentation style of `cad/pivot_frame.scad` on the
+unmerged `feature/reaction-wheel-cad` branch: named variables in mm grouped
+into `/* [Section] */` blocks, a header comment distinguishing measured vs.
+assumed dimensions, a `render_part` switch at the bottom, and small fast
+test coupons to validate risky dimensions before committing to the full
+(multi-hour) print. It is an independent part for an independent subsystem
+— nothing here depends on that branch, and it was not merged to produce
+this file.
+
+---
+
+## What this had to actually solve (not a generic box)
+
+**Weatherproof DC power entry.** A PG7 cable gland (clamping range ~3–6.5mm
+cable OD) through a 12.5mm nominal panel hole, sized for a typical USB-C or
+5.5/2.1mm barrel-jack power cable jacket. The gland body does the
+clamping/sealing on the cable; the enclosure only needs a clean round hole
+(`gland_hole_d = 12.7mm`, +0.2mm print margin — see Tolerances below).
+
+**LoRa antenna RF path — external, not through the shell.** Checked before
+assuming either way (see Sources below): the Meshnology-sold Wio Tracker L1
+kit ships with a separate whip LoRa antenna connected via an included
+**RF Cable (RP-SMA to IPEX)** pigtail, plus a separate GPS antenna. That
+means the LoRa antenna is external by product design — the board doesn't
+rely on a PCB trace antenna radiating through the case. The enclosure
+therefore has a **6.7mm bulkhead passthrough hole** (`antenna_passthrough_cut()`)
+on the +X end wall for the pigtail's own RP-SMA bulkhead connector; the
+board's IPEX end stays inside, a short cable run to the bulkhead, whip
+antenna screws on from outside. This is a hard requirement this design
+solves, not an assumption — do not print a version that seals the antenna
+inside plastic.
+
+GPS antenna handling is a separate, **unresolved** question — see Open
+questions below.
+
+**Drainage / condensation.** A sealed outdoor box will accumulate
+condensation from temperature swings regardless of gasket quality — sealing
+it "tighter" makes this worse, not better. Two features:
+- A 3mm drain hole (`drain_hole_cut()`, commonly-cited practical minimum
+  that resists surface-tension blocking) through the floor in the utility
+  corridor, away from both boards and the battery pocket.
+- A small desiccant packet cage (`desiccant_pins()`, 4 locating pins sized
+  for a small 1–5g silica gel packet) so humidity that does get in has
+  something to be absorbed by, replaceable through the lid at service time.
+
+The drain hole's position assumes the enclosure is mounted with its floor
+at the true low point once installed — see the pole-mount note below on why
+that's not fully nailed down yet.
+
+**Mounting — pole-mount, chosen over wall-tab or ground stake.** Two
+shallow horizontal alignment grooves (`pole_mount_grooves_cut()`) on the
+back (−Y) exterior wall. A stainless worm-gear hose clamp (or a pair of
+UV-stable strap ties) wraps around **both** the enclosure and the pole/mast
+and seats in these grooves so it can't ride up or down under wind load.
+Chosen over a wall-mount tab because a mast/pole is the most likely
+available outdoor mounting point for a range test (fence post, sign post,
+antenna mast) and over a ground stake because a stake puts the node at
+ground level, which both weakens LoRa's line-of-sight range and puts it in
+the most flood/runoff-prone spot for the drain hole. Pole diameter is
+deliberately **not** baked into the part — the clamp/strap is sized
+separately to whatever pole is actually used. This is a design choice, not
+an oversight; a wall-tab variant would be a small, mostly-independent
+addition if a future deployment needs it.
+
+**Material — ASA or PETG, not PLA.** UV exposure (PLA embrittles and
+chalks outdoors within weeks to months) and closed-black-box summer heat
+(PLA softens well under a temperature a sealed enclosure can reach in
+direct sun; ASA/PETG have meaningfully higher heat deflection) both rule
+PLA out. The reaction-wheel project's PLA choice
+(`docs/reaction-wheel.md` print notes) was for an **indoor** demonstrator
+with zero UV/thermal exposure — not a precedent that applies here. ASA is
+preferred if available (best UV stability, ABS-like without ABS's
+warping); PETG is an acceptable fallback with easier bed adhesion, fine for
+a shorter test deployment.
+
+---
+
+## Dimensional assumptions — what's real vs. guessed
+
+| Value | Status | Source / rationale |
+|---|---|---|
+| Pi 4B board 85×56mm, holes on 58×49mm rect, 3.5mm inset, 2.7mm hole dia | Cited public spec (Raspberry Pi official mechanical drawings) | Same outline + hole pattern confirmed shared across 3B/3B+/4B/5 — swapping Pi model should not require moving the standoffs |
+| **Exact Pi model = 4B** | **ASSUMED, confirm before printing** | satlab's existing fleet Pi is a Pi 3 Model B (`docs/hardware.md`); no specific unit has actually been assigned to this new outdoor node. Defaulted to 4B as "most likely spare" per the task that started this design — not a confirmed allocation |
+| Wio Tracker L1 PCB ~48×34mm | Converged across reseller/marketplace listings | No official Seeed mechanical drawing found — the Seeed wiki product page has no dimensions section, and the DigiKey datasheet PDF is scanned/image-only, not machine-readable text. Treat as approximate, not tight-tolerance |
+| Wio Tracker antenna = external, RP-SMA/IPEX pigtail | **Confirmed** | Meshnology product page (meshnology.com), box-contents list: "1 × LoRa Antenna, 1 × GPS Antenna, 1 × RF Cable (RP-SMA to IPEX)" |
+| Wio Tracker board+OLED stack height (15mm) | **Guessed**, not calipered | No unit measured for this dimension anywhere in the repo |
+| 3000mAh LiPo pouch battery footprint (65×40×12mm pocket) | **Guessed, generously oversized with slack** | CLAUDE.md / `docs/reaction-wheel.md` confirm a 3000mAh Meshnology LiPoly is on hand and earmarked for this radio, but no physical dimensions exist anywhere in the repo. Sized as a loose pocket + strap retention, deliberately not a snug press-fit, because the guess itself is unverified |
+| Self-tap M2.5 pilot (2.0mm) for Pi standoffs, M3 heat-set insert pilot (4.0mm) for corner bosses | **Assumed, not bench-validated** on ASA/PETG on the K2 Pro Combo | Print `render_part = "boss_test"` and physically test-fit an M2.5 screw and an M3 heat-set insert before trusting the full base |
+| SMA/gland hole print margins (+0.35mm / +0.2mm over nominal) | **Assumed** | Print `render_part = "gland_sma_test"` and test-fit an actual PG7 gland and an SMA bulkhead connector before the full print |
+
+---
+
+## Tolerances and the K2 Pro Combo's known quirk
+
+The reaction-wheel build (`docs/reaction-wheel.md`) measured a press-fit
+608ZZ bearing pocket printing **~0.21mm smaller** than its designed diameter
+on this printer (21.85mm designed → 21.64mm actual, first attempt). That
+number came from **one small precision press-fit bore on a much smaller,
+different part** — it is a starting point for "this printer's holes tend to
+print tight," **not** an assumed 1:1 transfer to this part. This enclosure
+has no press-fit holes: the Pi/corner bosses are self-tap pilots, and the
+gland/SMA holes are loose panel-clearance holes where a nut or gland body
+does the actual clamping, not the print tolerance. Risk here is lower than
+the reaction-wheel's bearing pocket, but every close-fit hole is called out
+above to verify with a test coupon rather than trusted blind, precisely
+because the shrinkage mechanism on this printer isn't fully understood
+(see the reaction-wheel doc's own open root-cause question on the flywheel
+print).
+
+Print settings: use the same conservative regime the reaction-wheel build
+converged on for this printer — outer wall ~25–30mm/s, inner wall
+~35–40mm/s, infill ~50–60mm/s, 4–5 slow first layers, 0.18–0.2mm layer
+height. That regime was found necessary to avoid F00528 "printing without
+extruding" flow-limit faults on a much smaller part; there is no reason to
+expect a larger part to be more forgiving, so start there rather than
+slicer defaults.
+
+---
+
+## Validation performed
+
+`openscad` (2026.06.12, headless) is installed in the environment
+(`which openscad` → `/opt/homebrew/bin/openscad`), so this was actually
+rendered, not just written and assumed to work:
+
+```bash
+openscad -D 'render_part="base"'          -o cad/outdoor_enclosure_base.stl        cad/outdoor_enclosure.scad
+openscad -D 'render_part="lid"'           -o cad/outdoor_enclosure_lid.stl         cad/outdoor_enclosure.scad
+openscad -D 'render_part="boss_test"'     -o cad/outdoor_enclosure_boss_test.stl   cad/outdoor_enclosure.scad
+openscad -D 'render_part="gland_sma_test"' -o cad/outdoor_enclosure_gland_sma_test.stl cad/outdoor_enclosure.scad
+```
+
+All four render **manifold, `Status: NoError`** (checked via the CLI's own
+render-quality report, not just "no exception thrown"). PNG previews were
+also rendered (`--imgsize`/`--camera`) and visually inspected, including a
+preview-mode render (no `--render`, so the `%`-tagged debug overlays are
+included) that overlays translucent placeholder blocks for the Pi board,
+Wio Tracker board, and battery pouch at their designed positions/heights —
+confirming by inspection that the three component zones (Pi standoffs, Wio
+Tracker locating pins, battery pocket) do not overlap each other, the
+corner bosses, or the four wall passthroughs (gland, antenna, drain,
+desiccant), and that each zone has real clearance to the walls. This is a
+genuine geometric check, not just "it compiled" — but it is a **visual**
+check against placeholder rectangular stand-ins for the real boards, not a
+dimensioned interference check against actual board 3D models (none exist
+for the Wio Tracker publicly, per the dimensions gap above), and it has
+**not been checked against a physical print** — see Open questions.
+
+The `%` debug overlay blocks are OpenSCAD "background" modifiers: visible
+in preview (`F5`/no `--render`), automatically excluded from the actual
+solid geometry on `--render`/STL export — confirmed empirically (the
+`--render` PNG and the exported STL both show the physical part only, with
+no overlay artifacts).
+
+---
+
+## Open questions — resolve before printing/deploying for real
+
+- **Confirm the actual Pi model** going into this node. If it's the fleet's
+  Pi 3B rather than a 4B, the mounting holes/outline are identical so no
+  `.scad` changes are needed for the standoffs — but the port stack-up
+  (USB/Ethernet/power connector positions and heights) differs slightly by
+  model and is **not modeled at all** in this design (no port cutout
+  windows — the whole short edge above the standoffs is left open to the
+  interior). Confirm the model, then confirm the ports actually clear the
+  open edge/gland routing as intended.
+- **Caliper the actual Wio Tracker L1 unit** on hand (2 units per
+  `CLAUDE.md` inventory) — board footprint, OLED/component stack height,
+  and where the IPEX LoRa connector physically sits relative to the board
+  edge (determines cable routing length to the SMA bulkhead). No official
+  Seeed mechanical drawing was found; everything here is a
+  reseller-listing convergence, the same failure mode that cost two wasted
+  print attempts on the reaction-wheel flywheel per its own build doc.
+- **Measure the actual 3000mAh battery pouch.** The battery bay is
+  deliberately oversized with slack because this number was never found —
+  confirm it's not, in fact, larger than the guessed 65×40×12mm pocket
+  before committing to a full print.
+- **GPS antenna handling is unresolved.** This design solves the LoRa
+  antenna passthrough (the task's explicit requirement) but the Wio Tracker
+  L1 also has an active GPS receiver with its own antenna. Two plausible
+  approaches, neither implemented: (a) mount the small GPS patch antenna
+  flat under a clear section of the lid — PETG/ASA are both RF-transparent
+  enough at 1.575GHz that this is usually fine, but it needs a bench GPS-
+  lock test before trusting it outdoors; (b) add a second SMA-class
+  passthrough. If GPS is not actually needed for the range test (LoRa RSSI/
+  SNR logging plus a known fixed test-node location may be sufficient),
+  the simplest fix is to just not use the GPS pigtail at all.
+- **Test-print `boss_test` and `gland_sma_test` before the full base.**
+  Confirm the M2.5 self-tap pilot, the M3 heat-set insert pilot, the PG7
+  gland fit, and the SMA bulkhead fit on real hardware. The full base is a
+  ~200×110×38mm part — likely a multi-hour print on this printer at the
+  conservative speed settings above, so validate the small stuff first,
+  same reasoning the reaction-wheel build used for its bearing/mount-hole
+  coupons.
+- **Gasket.** The design assumes a self-adhesive closed-cell foam
+  weatherstrip applied to the flat top rim of the base wall, compressed by
+  the lid's 4 corner screws. No gasket material has been sourced or
+  specified — pick one (common EPDM/neoprene foam tape, ~3mm thick
+  uncompressed) before the first outdoor deployment.
+- **Verify mounting orientation vs. drain placement.** The drain hole
+  assumes the enclosure sits with its floor genuinely at the low point once
+  pole-mounted. Depending on how the pole-mount grooves end up oriented in
+  practice (which face ends up "down"), the drain position may need to
+  move — confirm against the actual mounting orientation before the final
+  print, not just the CAD's implicit assumption.
+- **No IP rating claimed.** This is a gasketed, gland-sealed, drained
+  design following good outdoor-electronics practice, not a part tested or
+  rated to any IP standard. Treat it as "weather-resistant for a bench-
+  adjacent range test," not "submersible" or "storm-proof."
+
+---
+
+## Sources
+
+- Raspberry Pi mounting-hole pattern (58×49mm, M2.5, 2.7mm dia, 3.5mm
+  inset) and confirmation the 3B/3B+/4B/5 share the same board outline and
+  hole pattern: Raspberry Pi official mechanical drawings
+  (`datasheets.raspberrypi.com`), cross-checked against multiple secondary
+  summaries.
+- Wio Tracker L1 PCB footprint (~48×34mm): converged from reseller listings
+  (Botland product listing and aggregated search results); no official
+  Seeed dimensioned drawing was found.
+- Wio Tracker L1 external antenna confirmation (RP-SMA/IPEX pigtail + GPS
+  antenna, both external): Meshnology product page
+  (`meshnology.com/products/meshnology-n37-wio-tracker-l1-lora-meshtastic-gps-dev-board-with-1-3-oled`),
+  box-contents list.
+- Seeed Wio Tracker L1 wiki (`wiki.seeedstudio.com/wio_tracker_l1_node/`)
+  and product page (`seeedstudio.com/Wio-Tracker-L1-p-6453.html`): confirmed
+  USB-C 5V/1A power, 2P-1.25mm 3.7V battery connector, but no mechanical
+  dimensions section.
