@@ -226,6 +226,25 @@ hood_depth     = 16;  // how far the rain-hood shelf projects outward from the w
 hood_t         = 3;   // thickness at the wall-attached (thick) edge
 hood_gap_above = 6;   // clearance between the vent opening's top edge and the hood's underside at the wall
 
+/* [Pest exclusion -- birds/bats/wasps through the vent openings]
+ * Two layers, matching how real outdoor vented equipment actually handles
+ * this -- a single printed grille alone can't do both jobs at once. Printed
+ * portcullis-style bars (pest_grille()) sit IN the vent opening: wide
+ * enough gaps for the fan to breathe, narrow enough to physically block
+ * birds/bats. They do NOT alone stop wasps -- a gap that size is nowhere
+ * near fine enough. mesh_rebate_cut() cuts a shallow pocket on the
+ * INTERIOR wall face around each opening sized for a cut disc of real
+ * insect-screen mesh (fiberglass or aluminum window-screen stock,
+ * user-sourced and glued in) -- the bars sit just outside it and give the
+ * screen something rigid to rest against so it doesn't sag/tear under
+ * wind or fan suction. Printing screen-tightness openings directly in
+ * ASA/PETG was ruled out: at ~1-2mm FDM walls become fragile lace, not a
+ * durable outdoor part. */
+grille_bar_w        = 2.5; // ASSUMED bar width -- no structural calc against wind/impact load
+grille_gap          = 8;   // ASSUMED gap between bars -- comfortably under common bird/bat vent-exclusion specs (~12-19mm max); does NOT by itself stop wasps, see mesh rebate above
+mesh_rebate_extra_d = 6;   // rebate diameter = opening_d + this, so the screen disc overlaps the opening's edge all the way around
+mesh_rebate_depth   = 1.5; // shallow -- just enough to trap/glue a screen disc, not a structural pocket
+
 /* [Pole mount -- chosen default; see docs/outdoor-enclosure.md for why over wall-tab/stake] */
 // Two shallow horizontal alignment grooves on the back (-Y) exterior wall.
 // A stainless worm-gear hose clamp (or a pair of UV-stable strap ties)
@@ -423,6 +442,44 @@ module intake_vent_cut() {
             cylinder(h = wall_t + 2, d = intake_hole_d, center = true);
 }
 
+module pest_grille(x_center, y_sign, wall_z, opening_d) {
+    // Portcullis bars printed IN the vent opening (union, not a cut) --
+    // vertical bars spaced across the circular opening, each sized to the
+    // opening's chord at that x so the whole set reads as one grille
+    // filling the hole. See "Pest exclusion" header comment for why this
+    // alone doesn't stop wasps (that's mesh_rebate_cut() below).
+    y_center = y_sign * (ext_w/2 - wall_t/2);
+    n = floor(opening_d / (grille_bar_w + grille_gap));
+    span = n * (grille_bar_w + grille_gap) - grille_gap;
+    for (i = [0 : n - 1]) {
+        bx = x_center - span/2 + i * (grille_bar_w + grille_gap) + grille_bar_w/2;
+        dx = bx - x_center;
+        half_chord = (abs(dx) < opening_d/2) ? sqrt((opening_d/2)*(opening_d/2) - dx*dx) : 0;
+        if (half_chord > 1)
+            translate([bx - grille_bar_w/2, y_center - (wall_t/2 + 1), wall_z - half_chord])
+                cube([grille_bar_w, wall_t + 2, 2 * half_chord]);
+    }
+}
+
+module mesh_rebate_cut(x_center, y_sign, wall_z, opening_d) {
+    // Shallow pocket on the INTERIOR wall face only (not a through-cut),
+    // sized bigger than the opening so a cut insect-screen disc overlaps
+    // the hole's edge all the way around. Built as a generous symmetric
+    // cylinder intersected with an explicit Y-range box for the interior-
+    // side slab, rather than an asymmetric cylinder -- avoids depending on
+    // which global direction a rotated center=false cylinder happens to
+    // extend in, which isn't obvious from this file's existing patterns.
+    y_interior = y_sign * (ext_w/2 - wall_t);
+    rebate_d = opening_d + mesh_rebate_extra_d;
+    intersection() {
+        translate([x_center, y_sign * (ext_w/2 - wall_t/2), wall_z])
+            rotate([90, 0, 0])
+                cylinder(h = wall_t + 2, d = rebate_d, center = true);
+        translate([x_center - rebate_d/2 - 1, min(y_interior, y_interior + y_sign * mesh_rebate_depth), wall_z - rebate_d/2 - 1])
+            cube([rebate_d + 2, mesh_rebate_depth, rebate_d + 2]);
+    }
+}
+
 module rain_hood(x_center, y_sign, wall_z, opening_d) {
     // Self-supporting wedge: thick where it meets the wall, tapering to a
     // thin drip edge at the outer tip with a sloped underside (~40 deg),
@@ -481,10 +538,14 @@ module enclosure_base() {
         pole_mount_grooves_cut();
         fan_vent_cut();
         intake_vent_cut();
+        mesh_rebate_cut(fan_x_center, 1, fan_wall_z, fan_hole_d);
+        mesh_rebate_cut(intake_x_center, -1, intake_wall_z, intake_hole_d);
     }
     desiccant_pins();
     rain_hood(fan_x_center, 1, fan_wall_z, fan_hole_d);
     rain_hood(intake_x_center, -1, intake_wall_z, intake_hole_d);
+    pest_grille(fan_x_center, 1, fan_wall_z, fan_hole_d);
+    pest_grille(intake_x_center, -1, intake_wall_z, intake_hole_d);
     debug_component_overlays();
 }
 
