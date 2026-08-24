@@ -138,15 +138,38 @@ base_wall_h = 38;    // interior clear height = base_wall_h - floor_t = 34.5mm
 lid_t       = 3;
 lid_skirt_h = 8;      // downturned lid lip that overlaps the base wall's outer face
 lid_skirt_clear = 0.3; // per-side clearance so the skirt slides over the base wall (not press-fit)
+lid_crown_h = 10;     // ASSUMED shallow rise at center, shed-water slope not tightly engineered -- gentle enough to print with no supports (small fraction of the 200x110 footprint)
 ext_l = 200;
 ext_w = 110;
 
-/* [Corner fasteners -- base<->lid] */
+/* [Corner fasteners -- base<->lid]
+ * Fasteners enter from the BOTTOM of the base and thread UP into the lid,
+ * not down through the lid's top face. Two reasons, both about keeping
+ * every penetration off the rain-facing top surface: a top-entry screw
+ * head is itself a water-entry point (the head-to-hole interface is very
+ * hard to seal reliably over years outdoors), and the heat-set insert
+ * pocket it screws into is a second one. Bottom entry puts both on the
+ * enclosure's underside, which stays shadowed from direct rain regardless
+ * of mount orientation (pole-mount grooves are on the back wall, not the
+ * bottom -- see pole-mount section below). The insert itself still lives
+ * in the LID (corner_bosses_lid() further down), just accessed from below
+ * now instead of from above.
+ *
+ * Consequence worth knowing before ordering hardware: the screw now has to
+ * span nearly the FULL enclosure height (base_wall_h, 38mm) plus reach
+ * into the lid boss's insert, not just the old lid_t+lid_skirt_h (~11mm).
+ * With corner_head_recess_h/corner_lid_boss_h/corner_insert_depth as set
+ * below, that's roughly 28mm of engagement needed from the head -- use
+ * M3 x 30mm socket-head cap screws (4x), not a generic short assortment
+ * screw. */
 corner_inset        = 10;
 corner_boss_od       = 10;
 corner_insert_d      = 4.0;  // ASSUMED M3 heat-set insert pilot -- verify on boss_test coupon
 corner_insert_depth  = 6;
-corner_clear_d        = 3.4; // M3 clearance through the lid
+corner_clear_d        = 3.4; // M3 shaft clearance, base's through-bore + lid's boss test coupon
+corner_head_d        = 6.5;  // ASSUMED M3 socket-head cap screw head clearance -- not calipered
+corner_head_recess_h = 3.5;  // ASSUMED counterbore depth so the head sits flush/recessed in the base's underside, not protruding
+corner_lid_boss_h    = lid_skirt_h + corner_insert_depth + 2; // reaches from the lid's underside down past the skirt, plus insert depth and margin
 
 /* [Antenna passthrough -- LoRa, external by product design, see header] */
 // Standard SMA/RP-SMA bulkhead panel hole is 6.35mm (1/4in) nominal; the
@@ -172,6 +195,36 @@ desiccant_pack_w = 14;  // small silica gel packet (1-5g class), retained loosel
 desiccant_pack_l = 30;
 desiccant_pin_d  = 3;
 desiccant_pin_h  = 10;
+
+/* [Ventilation -- ASSUMED small-fan spec, CONFIRM against the actual unit before printing]
+ * User plans to run a small fan for active airflow. Fan side (+Y wall,
+ * exhaust, positioned over the radio zone) gets a plain circular opening
+ * sized to the fan's own air-opening plus its standard 4-hole mounting
+ * pattern -- deliberately NOT behind a slotted grille, which would choke
+ * a small fan's already-modest static pressure. Opposite side (-Y wall,
+ * passive intake, positioned over the Pi zone for a straight through-flow
+ * path -- same wall as the pole-mount grooves but a different Z band, see
+ * vent_wall_z below) gets a same-style hooded opening, sized a bit larger
+ * since it only needs adequate passive free area, not a fan-shaped hole.
+ * Both get a simple wedge-shaped rain-hood (see fan_rain_hood() /
+ * intake_rain_hood() below) -- self-supporting sloped underside so it
+ * prints with no slicer supports, drip edge sheds water off the tip
+ * instead of letting it run back toward the wall. */
+fan_hole_d          = 36;   // ASSUMED generic 40mm-fan air-opening clearance -- confirm against the actual fan
+fan_mount_spacing   = 32;   // ASSUMED standard 40mm-fan mounting-hole spacing
+fan_mount_hole_d    = 3.4;  // M3 clearance
+fan_wall_z          = floor_t + 20; // +Y wall, clear of both pole-mount groove bands on the opposite wall
+// fan_x_center is derived from wio_origin_x, which isn't computed until the
+// "Derived layout" section below -- see fan_x_center's assignment there,
+// not here, so it doesn't silently evaluate against an undefined variable.
+
+intake_hole_d = 42;  // a bit larger than the fan opening -- no fan-shape constraint on this side
+intake_wall_z = floor_t + 20; // -Y wall, matches fan_wall_z for a straight through-flow path; clear of pole_groove bands (floor_t+8 and base_wall_h-8, each +-pole_groove_h/2)
+// intake_x_center: same story, see "Derived layout" below.
+
+hood_depth     = 16;  // how far the rain-hood shelf projects outward from the wall
+hood_t         = 3;   // thickness at the wall-attached (thick) edge
+hood_gap_above = 6;   // clearance between the vent opening's top edge and the hood's underside at the wall
 
 /* [Pole mount -- chosen default; see docs/outdoor-enclosure.md for why over wall-tab/stake] */
 // Two shallow horizontal alignment grooves on the back (-Y) exterior wall.
@@ -213,6 +266,10 @@ batt_origin_y = wio_origin_y - 8 - batt_pocket_w; // 8mm gap below the Wio Track
 
 drain_x     = 90;
 drain_y     = -45;
+
+fan_x_center    = wio_origin_x + wio_board_l/2;   // +Y wall, over the radio zone
+intake_x_center = pi_origin_x + pi_board_l/2;     // -Y wall, over the Pi zone -- see "Ventilation" header
+
 desiccant_x = 89;
 desiccant_y = 0;
 
@@ -315,12 +372,72 @@ module gland_passthrough_cut() {
 }
 
 module corner_bosses_base() {
+    // Fastener enters from the base's underside (z=0): a clearance bore for
+    // the screw shaft runs the full post height, with a counterbore at the
+    // very bottom for the screw head so it sits flush/recessed rather than
+    // protruding below the enclosure. No insert lives here anymore -- see
+    // corner_bosses_lid() below, and the "Corner fasteners" header comment
+    // for why the insert moved to the lid.
     corner_positions()
         difference() {
             cylinder(h = base_wall_h, d = corner_boss_od);
-            translate([0, 0, base_wall_h - corner_insert_depth])
-                cylinder(h = corner_insert_depth + 1, d = corner_insert_d);
+            translate([0, 0, -1])
+                cylinder(h = base_wall_h + 2, d = corner_clear_d);
+            translate([0, 0, -1])
+                cylinder(h = corner_head_recess_h + 1, d = corner_head_d);
         }
+}
+
+module corner_bosses_lid() {
+    // Hangs down from the lid's underside (this module's local z=0 is the
+    // flat attachment layer's bottom face, see lid_top()) into the
+    // interior, reaching past the skirt. Heat-set insert pocket opens at
+    // the BOTTOM of this boss -- pressed in from underneath during
+    // assembly, screw threads up into it from the base's side. See the
+    // "Corner fasteners" header comment for why the insert lives here
+    // instead of in the base.
+    corner_positions()
+        translate([0, 0, -corner_lid_boss_h])
+            difference() {
+                cylinder(h = corner_lid_boss_h, d = corner_boss_od);
+                cylinder(h = corner_insert_depth, d = corner_insert_d);
+            }
+}
+
+module fan_vent_cut() {
+    // +Y wall: fan air-opening + its 4 mounting screw holes, fan mounts
+    // against the interior face and blows out through this hole.
+    translate([fan_x_center, ext_w/2 - wall_t/2, fan_wall_z])
+        rotate([90, 0, 0]) {
+            cylinder(h = wall_t + 2, d = fan_hole_d, center = true);
+            for (sx = [-1, 1]) for (sy = [-1, 1])
+                translate([sx * fan_mount_spacing/2, sy * fan_mount_spacing/2, 0])
+                    cylinder(h = wall_t + 2, d = fan_mount_hole_d, center = true);
+        }
+}
+
+module intake_vent_cut() {
+    // -Y wall: passive intake opening, no fan mounted here.
+    translate([intake_x_center, -ext_w/2 + wall_t/2, intake_wall_z])
+        rotate([90, 0, 0])
+            cylinder(h = wall_t + 2, d = intake_hole_d, center = true);
+}
+
+module rain_hood(x_center, y_sign, wall_z, opening_d) {
+    // Self-supporting wedge: thick where it meets the wall, tapering to a
+    // thin drip edge at the outer tip with a sloped underside (~40 deg),
+    // so it prints without support material and sheds water off the tip
+    // rather than letting it run back down the wall face. y_sign is +1 for
+    // the +Y wall, -1 for the -Y wall.
+    hood_w = opening_d + 20;
+    z0 = wall_z + opening_d/2 + hood_gap_above;
+    y_wall = y_sign * (ext_w/2 - wall_t);
+    hull() {
+        translate([x_center - hood_w/2, y_wall, z0])
+            cube([hood_w, 0.1, hood_t]);
+        translate([x_center - hood_w/2, y_wall + y_sign * hood_depth, z0 - hood_depth * 0.5])
+            cube([hood_w, 0.1, 0.6]);
+    }
 }
 
 module pole_mount_grooves_cut() {
@@ -362,34 +479,62 @@ module enclosure_base() {
         antenna_passthrough_cut();
         gland_passthrough_cut();
         pole_mount_grooves_cut();
+        fan_vent_cut();
+        intake_vent_cut();
     }
     desiccant_pins();
+    rain_hood(fan_x_center, 1, fan_wall_z, fan_hole_d);
+    rain_hood(intake_x_center, -1, intake_wall_z, intake_hole_d);
     debug_component_overlays();
 }
 
 // ---------------------------------------------------------------------------
 // Lid
 // ---------------------------------------------------------------------------
-module enclosure_lid() {
-    difference() {
-        union() {
-            // flat top
-            rect_prism_centered(ext_l, ext_w, lid_t);
-            // downturned skirt, slides over the base wall's outer face
-            translate([0, 0, -lid_skirt_h])
-                difference() {
-                    rect_prism_centered(ext_l, ext_w, lid_skirt_h + lid_t);
-                    translate([0, 0, -1])
-                        rect_prism_centered(
-                            ext_l - 2*wall_t + 2*lid_skirt_clear,
-                            ext_w - 2*wall_t + 2*lid_skirt_clear,
-                            lid_skirt_h + lid_t + 2);
-                }
+module lid_top() {
+    // Shallow domed/crowned top instead of a flat slab, so rain sheds
+    // outward rather than pooling. Built as a flattened ellipsoid
+    // (scaled sphere) sitting on the flat attachment layer that the
+    // skirt/corner bosses reference, clipped to the lid's footprint (inset
+    // by wall_t so the dome doesn't overhang past the skirt's outer face)
+    // and to its upper cap only. Rise is a small fraction of the 200x110mm
+    // footprint, so the slope stays well within FDM's unsupported-overhang
+    // range everywhere -- no supports needed printing lid-up.
+    union() {
+        rect_prism_centered(ext_l, ext_w, lid_t);
+        intersection() {
+            translate([0, 0, lid_t])
+                scale([ext_l/2 - wall_t, ext_w/2 - wall_t, lid_crown_h])
+                    sphere(r = 1);
+            translate([0, 0, lid_t])
+                rect_prism_centered(ext_l - 2*wall_t, ext_w - 2*wall_t, lid_crown_h);
         }
-        // corner screw clearance, straight through skirt + top
-        corner_positions()
-            translate([0, 0, -lid_skirt_h - 1])
-                cylinder(h = lid_skirt_h + lid_t + 2, d = corner_clear_d);
+    }
+}
+
+module enclosure_lid() {
+    // No more screw penetrations through the top face -- fasteners enter
+    // from the base's underside and thread up into corner_bosses_lid()'s
+    // inserts (see "Corner fasteners" header comment). The lid side just
+    // needs the boss with its insert pocket, not a through-hole.
+    union() {
+        difference() {
+            lid_top();
+            // (nothing cut here currently -- kept as a difference() shell
+            // for symmetry with enclosure_base() and so future top-face
+            // cuts, if any, have an obvious place to go)
+        }
+        // downturned skirt, slides over the base wall's outer face
+        translate([0, 0, -lid_skirt_h])
+            difference() {
+                rect_prism_centered(ext_l, ext_w, lid_skirt_h + lid_t);
+                translate([0, 0, -1])
+                    rect_prism_centered(
+                        ext_l - 2*wall_t + 2*lid_skirt_clear,
+                        ext_w - 2*wall_t + 2*lid_skirt_clear,
+                        lid_skirt_h + lid_t + 2);
+            }
+        corner_bosses_lid();
     }
 }
 
@@ -436,7 +581,7 @@ module gland_sma_test() {
 }
 
 /* [Render selection] */
-render_part = "base"; // "base" | "lid" | "boss_test" | "gland_sma_test"
+render_part = "base";
 
 if (render_part == "base") enclosure_base();
 else if (render_part == "lid") enclosure_lid();
