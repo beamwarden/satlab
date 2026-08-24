@@ -119,6 +119,20 @@ tapering to a thin drip edge, sloped underside so it prints with no
 supports and sheds water off the tip instead of letting it run back down
 the wall face toward the vent.
 
+**Pest exclusion — birds, bats, wasps.** A plain open vent hole is an
+entry point for all three. Two layers, not one, because no single printed
+feature does both jobs: printed portcullis-style bars (`pest_grille()`)
+sit in each opening — wide enough gaps for airflow, narrow enough (8mm)
+to comfortably block birds/bats — plus a shallow rebate on the interior
+wall face (`mesh_rebate_cut()`) sized for a cut disc of real insect-screen
+mesh (fiberglass or aluminum window-screen stock, **not printed** — see
+Open questions). The bars alone do **not** stop wasps; that gap is nowhere
+near fine enough. Printing genuine insect-screen tightness directly in
+ASA/PETG was ruled out — at that scale FDM walls become fragile lace, not
+a durable outdoor part; the screen has to be real mesh, glued into the
+rebate, with the bars there to give it something rigid to rest against
+under wind/fan suction rather than sag or tear.
+
 **Material — ASA or PETG, not PLA.** UV exposure (PLA embrittles and
 chalks outdoors within weeks to months) and closed-black-box summer heat
 (PLA softens well under a temperature a sealed enclosure can reach in
@@ -280,6 +294,11 @@ underside bosses are present.
 - **Confirm the actual fan.** `fan_hole_d`/`fan_mount_spacing` assume a
   generic 40mm fan; measure the real unit's air-opening and mounting-hole
   spacing before printing, and update those variables if they differ.
+- **Source insect-screen mesh** (fiberglass or aluminum window-screen
+  stock) and cut two discs to fit the mesh rebates (`fan_hole_d`/
+  `intake_hole_d` + `mesh_rebate_extra_d`), plus an outdoor-rated
+  adhesive to bond them in place. This is real hardware, not something
+  the print provides — the printed grille bars only handle birds/bats.
 - **Source M3 × 30mm socket-head cap screws** (4×) for the corner
   fasteners — see the bottom-entry design change above for why they need
   to be this long, not a generic short assortment screw.
