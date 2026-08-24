@@ -80,6 +80,45 @@ separately to whatever pole is actually used. This is a design choice, not
 an oversight; a wall-tab variant would be a small, mostly-independent
 addition if a future deployment needs it.
 
+**Convex/crowned lid — no standing water.** The original flat-top lid design
+was changed to a shallow domed top (`lid_top()`, a flattened ellipsoid
+intersected with the lid footprint) so rain sheds outward instead of
+pooling on a flat horizontal surface. Shallow enough (10mm rise over the
+200×110mm footprint) to print with no slicer supports.
+
+**Fasteners enter from the bottom, not through the top.** The original
+design had the 4 corner screws going straight down through the lid's top
+face into inserts in the base. Changed so the screw enters from the base's
+**underside** instead and threads **up** into an insert now living in the
+lid (`corner_bosses_lid()`), reached through a full-height clearance bore
+in the base's corner post with a counterbore at the very bottom so the
+screw head sits flush/recessed rather than protruding. Two reasons, both
+about keeping every fastener penetration off the rain-facing top: the
+head-to-hole interface at a top-entry screw is itself a hard-to-seal
+water-entry point over years outdoors, and so is the insert pocket it
+threads into. Bottom entry puts both on the underside, which stays
+shadowed from direct rain regardless of mount orientation.
+
+**Consequence worth knowing before ordering hardware:** the screw now has
+to span nearly the full enclosure height plus reach into the lid's insert
+— roughly 28mm of engagement with the dimensions as designed. Use **M3 ×
+30mm socket-head cap screws** (4×), not a generic short assortment screw.
+
+**Ventilation for an active fan.** User plans to run a small fan for active
+airflow, not passive-only. The +Y wall (front, over the radio zone) gets a
+plain circular opening sized to a generic 40mm fan's air-opening plus its
+standard 4-hole mounting pattern (`fan_vent_cut()`) — deliberately **not**
+behind a slotted grille, which would choke a small fan's already-modest
+static pressure. The fan mounts against the interior wall face and blows
+out through the hole. The opposite (−Y) wall gets a same-style but larger
+passive intake opening (`intake_vent_cut()`, no fan, positioned over the Pi
+zone for a straight through-flow path) — it only needs adequate free area,
+not a fan-shaped hole, so it can afford to be simpler. Both openings get a
+self-supporting wedge-shaped rain hood (`rain_hood()`) — thick at the wall,
+tapering to a thin drip edge, sloped underside so it prints with no
+supports and sheds water off the tip instead of letting it run back down
+the wall face toward the vent.
+
 **Material — ASA or PETG, not PLA.** UV exposure (PLA embrittles and
 chalks outdoors within weeks to months) and closed-black-box summer heat
 (PLA softens well under a temperature a sealed enclosure can reach in
@@ -105,6 +144,8 @@ a shorter test deployment.
 | 3000mAh LiPo pouch battery footprint (65×40×12mm pocket) | **Guessed, generously oversized with slack** | CLAUDE.md / `docs/reaction-wheel.md` confirm a 3000mAh Meshnology LiPoly is on hand and earmarked for this radio, but no physical dimensions exist anywhere in the repo. Sized as a loose pocket + strap retention, deliberately not a snug press-fit, because the guess itself is unverified |
 | Self-tap M2.5 pilot (2.0mm) for Pi standoffs, M3 heat-set insert pilot (4.0mm) for corner bosses | **Assumed, not bench-validated** on ASA/PETG on the K2 Pro Combo | Print `render_part = "boss_test"` and physically test-fit an M2.5 screw and an M3 heat-set insert before trusting the full base |
 | SMA/gland hole print margins (+0.35mm / +0.2mm over nominal) | **Assumed** | Print `render_part = "gland_sma_test"` and test-fit an actual PG7 gland and an SMA bulkhead connector before the full print |
+| Fan opening 36mm dia, 32mm mounting-hole spacing | **Assumed generic 40mm-fan spec** | No specific fan unit identified yet — confirm against whatever fan actually gets used before printing; a non-standard hole spacing would need `fan_mount_spacing` updated |
+| Rain-hood dimensions (16mm projection, wedge angle) | **Assumed, not engineered** | Sized to visually/geometrically clear the vent openings, not calculated against expected rain angle/wind-driven rain for the actual deployment site |
 
 ---
 
@@ -170,6 +211,21 @@ solid geometry on `--render`/STL export — confirmed empirically (the
 `--render` PNG and the exported STL both show the physical part only, with
 no overlay artifacts).
 
+**Second validation pass (convex lid / bottom-entry fasteners /
+ventilation change):** re-rendered all four `render_part` variants after
+this change. The first attempt surfaced a real bug via OpenSCAD's own
+`WARNING: Ignoring unknown variable` output — `fan_x_center`/
+`intake_x_center` were declared in the parameter section, textually
+*before* the "Derived layout" section that computes the `wio_origin_x`/
+`pi_origin_x` values they depend on, so they silently evaluated against
+`undef`. Moved them into the Derived layout section where the values
+they reference actually exist; re-rendered clean with zero warnings on
+all four variants, still manifold/`NoError`. Camera-angle PNG previews of
+both the base (both vent walls) and the lid were visually checked: the
+crown is clearly convex, both rain hoods sit cleanly over their vent
+openings with no collision against the corner posts, and the lid's new
+underside bosses are present.
+
 ---
 
 ## Open questions — resolve before printing/deploying for real
@@ -221,6 +277,12 @@ no overlay artifacts).
   practice (which face ends up "down"), the drain position may need to
   move — confirm against the actual mounting orientation before the final
   print, not just the CAD's implicit assumption.
+- **Confirm the actual fan.** `fan_hole_d`/`fan_mount_spacing` assume a
+  generic 40mm fan; measure the real unit's air-opening and mounting-hole
+  spacing before printing, and update those variables if they differ.
+- **Source M3 × 30mm socket-head cap screws** (4×) for the corner
+  fasteners — see the bottom-entry design change above for why they need
+  to be this long, not a generic short assortment screw.
 - **No IP rating claimed.** This is a gasketed, gland-sealed, drained
   design following good outdoor-electronics practice, not a part tested or
   rated to any IP standard. Treat it as "weather-resistant for a bench-
