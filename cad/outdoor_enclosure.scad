@@ -547,6 +547,7 @@ module enclosure_lid() {
 // boss_test: one Pi standoff + one corner boss, for self-tap pilot hole
 // (pi_pilot_d) and heat-set insert pilot hole (corner_insert_d) fit checks.
 module boss_test() {
+    // Pi standoff coupon -- unchanged by the bottom-entry fastener redesign.
     base_plate_l = 30; base_plate_w = 30; base_plate_h = floor_t;
     difference() {
         union() {
@@ -559,11 +560,30 @@ module boss_test() {
                 }
         }
     }
+
+    // Base-side corner boss coupon: through-bore for the screw shaft +
+    // bottom counterbore for the screw head. Short section (25mm), not
+    // the full base_wall_h -- only the fit at each end matters, not the
+    // full-length bore (a straight cylindrical cut can't go wrong partway
+    // through in a way a short section wouldn't also show).
     translate([base_plate_l + 15, 0, 0]) {
-        boss_h = 15;
+        boss_h = 25;
         difference() {
             cylinder(h = boss_h, d = corner_boss_od);
-            translate([0, 0, boss_h - corner_insert_depth])
+            translate([0, 0, -1])
+                cylinder(h = boss_h + 2, d = corner_clear_d);
+            translate([0, 0, -1])
+                cylinder(h = corner_head_recess_h + 1, d = corner_head_d);
+        }
+    }
+
+    // Lid-side corner boss coupon: matches corner_bosses_lid()'s actual
+    // geometry -- insert pocket opens at the BOTTOM, screw threads up into
+    // it from below.
+    translate([base_plate_l + 45, 0, 0]) {
+        difference() {
+            cylinder(h = corner_lid_boss_h, d = corner_boss_od);
+            translate([0, 0, -1])
                 cylinder(h = corner_insert_depth + 1, d = corner_insert_d);
         }
     }
