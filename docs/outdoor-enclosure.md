@@ -14,6 +14,38 @@ existing CAD convention (see `cad/pivot_frame.scad`'s STL siblings on
 
 ---
 
+## Hardware BOM
+
+Everything the design assumes gets installed, beyond the two printed parts
+themselves. "Likely in a generic screw/nut assortment kit" items still
+worth confirming the exact size is actually in the kit, not just assuming.
+
+| Item | Qty | Spec | Notes |
+|---|---|---|---|
+| Socket-head cap screws | 4 | M3 × 30mm | Corner fasteners, bottom-entry. This length is *not* a generic short assortment size — the screw spans nearly the full enclosure height (see the "Corner fasteners" design note above). Worth confirming a generic kit actually has 30mm, not just the more common 6–16mm range. |
+| Heat-set threaded inserts | 4 | M3 | Lid-side corner bosses. A specialty 3D-printing item, not typically in a general hardware assortment — check separately, don't assume the screw kit has these. Needs a soldering iron (or heat-set insert tool) to install, not just pressed in cold. |
+| Self-tapping screws | 4 | M2.5 | Pi board mounting, into the standoff pilot holes. Standard Pi/HAT mounting hardware — likely already in a generic kit or leftover from other Pi builds. |
+| Cable gland | 1 | PG7 (clamping range ~3–6.5mm cable OD) | DC power entry. Not in a generic screw kit — a distinct purchased part. |
+| SMA/RP-SMA bulkhead hardware | 1 set | — | **Already included** with the Meshnology Wio Tracker L1 kit's own RF pigtail (its own bulkhead nut/washer does the clamping) — not something to separately source. |
+| Insect-screen mesh | 1 sheet, enough for 2 discs | Fiberglass or aluminum window-screen stock | Cut to ~42mm and ~48mm discs (fan/intake rebate sizes). Real mesh, not part of the print — see "Pest exclusion" design note. |
+| Outdoor-rated adhesive | small amount | — | Bonds the mesh discs into their rebates. |
+| Gasket tape | ~0.6m | Self-adhesive closed-cell foam weatherstrip, ~3mm thick uncompressed (EPDM/neoprene) | Base wall's top rim, compressed by the lid's 4 corner screws. Not yet sourced/specified beyond this spec — see Open questions. |
+| Hose clamps or UV-stable strap ties | 2 | Stainless worm-gear, sized to the actual pole/mast diameter (not baked into the part) | Pole mount, one per groove band. |
+| Small fan | 1 | ~40mm, generic — **confirm the real unit's air-opening and mount-hole spacing against `fan_hole_d`/`fan_mount_spacing` before printing**, see Open questions | Not yet identified/sourced. |
+| Silica gel packet | 1 | Small, 1–5g class | Desiccant cage. |
+
+**Not in this BOM, already accounted for as existing project hardware:**
+Raspberry Pi (model still unconfirmed for this build — see Open questions),
+a Wio Tracker L1 unit, and the 3000mAh LiPo pouch battery. Worth flagging:
+CLAUDE.md's inventory shows 2 Wio Tracker L1 units, both already deployed
+(beamrider-0003, beamrider-0004) — plus a third unit went to
+beamrider-cluster-01 for the 3-node mesh test (satlab WORKLOG, 2026-08-23).
+**This outdoor build needs its own unit; confirm a 4th Wio Tracker is
+actually on hand, or which existing deployment this one relocates,** before
+assuming the hardware exists.
+
+---
+
 ## CAD style heritage
 
 Follows the parametric/documentation style of `cad/pivot_frame.scad` on the
