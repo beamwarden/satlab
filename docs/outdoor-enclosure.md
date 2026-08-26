@@ -14,6 +14,42 @@ existing CAD convention (see `cad/pivot_frame.scad`'s STL siblings on
 
 ---
 
+## Hardware BOM
+
+Everything the design assumes gets installed, beyond the two printed parts
+themselves. "Likely in a generic screw/nut assortment kit" items still
+worth confirming the exact size is actually in the kit, not just assuming.
+
+| Item | Qty | Spec | Notes |
+|---|---|---|---|
+| Socket-head cap screws | 4 | M3 × 30mm | Corner fasteners, bottom-entry. This length is *not* a generic short assortment size — the screw spans nearly the full enclosure height (see the "Corner fasteners" design note above). Worth confirming a generic kit actually has 30mm, not just the more common 6–16mm range. |
+| Heat-set threaded inserts | 4 | M3 | Lid-side corner bosses. A specialty 3D-printing item, not typically in a general hardware assortment — check separately, don't assume the screw kit has these. Needs a soldering iron (or heat-set insert tool) to install, not just pressed in cold. |
+| Self-tapping screws | 4 | M2.5 | Pi board mounting, into the standoff pilot holes. **Confirmed NOT in Jeb's generic screw kit** (checked 2026-08-25/26: no self-tapping screws, no M2/M2.5 sizes at all in that kit) — source separately, don't assume it's covered. |
+| Cable gland | 1 | PG7 (clamping range ~3–6.5mm cable OD) | DC power entry. Not in a generic screw kit — a distinct purchased part. |
+| SMA/RP-SMA bulkhead hardware | 1 set | — | **Already included** with the Meshnology Wio Tracker L1 kit's own RF pigtail (its own bulkhead nut/washer does the clamping) — not something to separately source. |
+| Insect-screen mesh | 1 sheet, enough for 2 discs | Fiberglass or aluminum window-screen stock | Cut to ~42mm and ~48mm discs (fan/intake rebate sizes). Real mesh, not part of the print — see "Pest exclusion" design note. |
+| Outdoor-rated adhesive | small amount | — | Bonds the mesh discs into their rebates. |
+| Gasket tape | ~0.6m | Self-adhesive closed-cell foam weatherstrip, ~3mm thick uncompressed (EPDM/neoprene) | Base wall's top rim, compressed by the lid's 4 corner screws. Not yet sourced/specified beyond this spec — see Open questions. |
+| Hose clamps or UV-stable strap ties | 2 | Stainless worm-gear, sized to the actual pole/mast diameter (not baked into the part) | Pole mount, one per groove band. |
+| Small fan | 1 | ~40mm, generic — **confirm the real unit's air-opening and mount-hole spacing against `fan_hole_d`/`fan_mount_spacing` before printing**, see Open questions | Not yet identified/sourced. |
+| Silica gel packet | 1 | Small, 1–5g class | Desiccant cage. |
+
+**Not in this BOM, already accounted for as existing project hardware:**
+Raspberry Pi (model still unconfirmed for this build — see Open questions),
+a Wio Tracker L1 unit, and the 3000mAh LiPo pouch battery.
+
+**Wio Tracker unit availability — resolved 2026-08-26.** CLAUDE.md's
+inventory previously showed only 2 units, both already deployed
+(beamrider-0003, beamrider-0004), plus a third that went to
+beamrider-cluster-01 for the 3-node mesh test (satlab WORKLOG,
+2026-08-23) — leaving none free for this build. 2 new units have since
+arrived, covering this build with one spare left over. (Separately noted:
+hangar's own catalog was checked against this and found to still show only
+2 units on record, missing the one already at beamrider-cluster-01 — a
+hangar data-staleness issue, unrelated to this doc, not fixed here.)
+
+---
+
 ## CAD style heritage
 
 Follows the parametric/documentation style of `cad/pivot_frame.scad` on the
@@ -252,8 +288,10 @@ underside bosses are present.
   windows — the whole short edge above the standoffs is left open to the
   interior). Confirm the model, then confirm the ports actually clear the
   open edge/gland routing as intended.
-- **Caliper the actual Wio Tracker L1 unit** on hand (2 units per
-  `CLAUDE.md` inventory) — board footprint, OLED/component stack height,
+- **Caliper the actual Wio Tracker L1 unit** on hand (2 new units arrived
+  2026-08-26, beyond `CLAUDE.md`'s previously-listed 2 already deployed —
+  see the BOM's Wio Tracker availability note above) — board footprint,
+  OLED/component stack height,
   and where the IPEX LoRa connector physically sits relative to the board
   edge (determines cable routing length to the SMA bulkhead). No official
   Seeed mechanical drawing was found; everything here is a
