@@ -24,7 +24,7 @@ worth confirming the exact size is actually in the kit, not just assuming.
 |---|---|---|---|
 | Socket-head cap screws | 4 | M3 × 30mm | Corner fasteners, bottom-entry. This length is *not* a generic short assortment size — the screw spans nearly the full enclosure height (see the "Corner fasteners" design note above). Worth confirming a generic kit actually has 30mm, not just the more common 6–16mm range. |
 | Heat-set threaded inserts | 4 | M3 | Lid-side corner bosses. A specialty 3D-printing item, not typically in a general hardware assortment — check separately, don't assume the screw kit has these. Needs a soldering iron (or heat-set insert tool) to install, not just pressed in cold. |
-| Self-tapping screws | 4 | M2.5 | Pi board mounting, into the standoff pilot holes. Standard Pi/HAT mounting hardware — likely already in a generic kit or leftover from other Pi builds. |
+| Self-tapping screws | 4 | M2.5 | Pi board mounting, into the standoff pilot holes. **Confirmed NOT in Jeb's generic screw kit** (checked 2026-08-25/26: no self-tapping screws, no M2/M2.5 sizes at all in that kit) — source separately, don't assume it's covered. |
 | Cable gland | 1 | PG7 (clamping range ~3–6.5mm cable OD) | DC power entry. Not in a generic screw kit — a distinct purchased part. |
 | SMA/RP-SMA bulkhead hardware | 1 set | — | **Already included** with the Meshnology Wio Tracker L1 kit's own RF pigtail (its own bulkhead nut/washer does the clamping) — not something to separately source. |
 | Insect-screen mesh | 1 sheet, enough for 2 discs | Fiberglass or aluminum window-screen stock | Cut to ~42mm and ~48mm discs (fan/intake rebate sizes). Real mesh, not part of the print — see "Pest exclusion" design note. |
