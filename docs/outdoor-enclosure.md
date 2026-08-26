@@ -36,13 +36,17 @@ worth confirming the exact size is actually in the kit, not just assuming.
 
 **Not in this BOM, already accounted for as existing project hardware:**
 Raspberry Pi (model still unconfirmed for this build — see Open questions),
-a Wio Tracker L1 unit, and the 3000mAh LiPo pouch battery. Worth flagging:
-CLAUDE.md's inventory shows 2 Wio Tracker L1 units, both already deployed
-(beamrider-0003, beamrider-0004) — plus a third unit went to
-beamrider-cluster-01 for the 3-node mesh test (satlab WORKLOG, 2026-08-23).
-**This outdoor build needs its own unit; confirm a 4th Wio Tracker is
-actually on hand, or which existing deployment this one relocates,** before
-assuming the hardware exists.
+a Wio Tracker L1 unit, and the 3000mAh LiPo pouch battery.
+
+**Wio Tracker unit availability — resolved 2026-08-26.** CLAUDE.md's
+inventory previously showed only 2 units, both already deployed
+(beamrider-0003, beamrider-0004), plus a third that went to
+beamrider-cluster-01 for the 3-node mesh test (satlab WORKLOG,
+2026-08-23) — leaving none free for this build. 2 new units have since
+arrived, covering this build with one spare left over. (Separately noted:
+hangar's own catalog was checked against this and found to still show only
+2 units on record, missing the one already at beamrider-cluster-01 — a
+hangar data-staleness issue, unrelated to this doc, not fixed here.)
 
 ---
 
@@ -284,8 +288,10 @@ underside bosses are present.
   windows — the whole short edge above the standoffs is left open to the
   interior). Confirm the model, then confirm the ports actually clear the
   open edge/gland routing as intended.
-- **Caliper the actual Wio Tracker L1 unit** on hand (2 units per
-  `CLAUDE.md` inventory) — board footprint, OLED/component stack height,
+- **Caliper the actual Wio Tracker L1 unit** on hand (2 new units arrived
+  2026-08-26, beyond `CLAUDE.md`'s previously-listed 2 already deployed —
+  see the BOM's Wio Tracker availability note above) — board footprint,
+  OLED/component stack height,
   and where the IPEX LoRa connector physically sits relative to the board
   edge (determines cable routing length to the SMA bulkhead). No official
   Seeed mechanical drawing was found; everything here is a
